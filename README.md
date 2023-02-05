@@ -1,6 +1,11 @@
 ZBAR BAR CODE READER
 ====================
 
+**DISCLAIMER**: This fork is a personal side project that has the goal of translating this C-based library to Rust.
+It is only a hobby project and has mainly the goal to experiment, get familiar with,
+and practice concepts of the Rust programming language, work with Function Foreign Interfaces (FFI),
+and refactoring in general. It is therefore not planned to (re-)distribute this library in any way.
+
 ZBar Bar Code Reader is an open source software suite for reading bar
 codes from various sources, such as video streams, image files and raw
 intensity sensors. It supports EAN-13/UPC-A, UPC-E, EAN-8, Code 128,
