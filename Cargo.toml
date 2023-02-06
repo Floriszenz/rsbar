@@ -1,0 +1,9 @@
+[workspace]
+members = ["rsbar-img"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+repository = "https://github.com/Floriszenz/rsbar"
+rust-version = "1.67"
+version = "0.1.0"
