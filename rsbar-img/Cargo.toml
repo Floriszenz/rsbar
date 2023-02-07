@@ -1,8 +1,10 @@
 [package]
 name = "rsbar-img"
+description = "Scan and decode bar codes from one or more image files."
 edition.workspace = true
 version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = { version = "4.1.4", features = ["derive"] }
