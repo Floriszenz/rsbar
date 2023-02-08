@@ -1,6 +1,19 @@
+#![allow(dead_code)]
 use std::path::PathBuf;
 
 use clap::Parser;
+
+static mut NOT_FOUND: i8 = 0;
+static mut EXIT_CODE: i8 = 0;
+static mut NUM_IMAGES: i8 = 0;
+static mut NUM_SYMBOLS: i8 = 0;
+static mut XMLLVL: i8 = 0;
+static mut POLYGON: i8 = 0;
+static mut ONESHOT: i8 = 0;
+static mut BINARY: i8 = 0;
+
+const XML_HEAD: &str = "<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>\n";
+const XML_FOOT: &str = "</barcodes>\n";
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -85,8 +98,23 @@ fn main() {
     }
 
     unsafe {
+        // Parse program arguments
+        ONESHOT = args.oneshot.into();
+
         zbar_set_verbosity(args.verbose.into());
 
+        if args.xml && XMLLVL >= 0 {
+            XMLLVL = 1;
+        } else if !args.xml && XMLLVL > 0 {
+            XMLLVL = 0;
+        }
+
+        if args.raw {
+            // RAW mode takes precedence
+            XMLLVL = -1;
+        }
+
+        // Init processor
         let processor = zbar_processor_create(0);
 
         assert!(!processor.is_null());
@@ -100,8 +128,28 @@ fn main() {
             return;
         }
 
+        // If XML enabled, print head of XML output
+        if XMLLVL > 0 {
+            print!("{XML_HEAD}");
+        }
+
+        if BINARY == 1 {
+            XMLLVL = -1;
+        }
+
+        // TODO:
+        // #ifdef _WIN32
+        //     if (xmllvl == -1) {
+        //         _setmode(_fileno(stdout), _O_BINARY);
+        //     } else {
+        //         _setmode(_fileno(stdout), _O_TEXT);
+        //     }
+        // #endif
+
+        // Apply other arguments to processor instance
         zbar_processor_set_visible(processor, args.display.into());
 
+        // Clean up
         zbar_processor_destroy(processor);
     }
 }
