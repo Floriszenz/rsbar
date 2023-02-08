@@ -6,7 +6,7 @@ use clap::Parser;
 #[command(version, about, long_about = None)]
 struct Args {
     /// The image file(s) to scan
-    image: Vec<PathBuf>,
+    images: Vec<PathBuf>,
 
     /// Enable display of following images to the screen
     #[arg(short, long, overrides_with = "_no_display")]
@@ -47,8 +47,50 @@ struct Args {
     // TODO: --nodbus (depending on feature) disable dbus message
 }
 
+#[link(name = "zbar", kind = "static")]
+extern "C" {
+    fn zbar_set_verbosity(level: libc::c_int);
+
+    fn zbar_processor_create(threaded: libc::c_int) -> *mut libc::c_void;
+
+    fn zbar_processor_init(
+        proc: *const libc::c_void,
+        dev: *const libc::c_char,
+        enable_display: libc::c_int,
+    ) -> libc::c_int;
+
+    fn _zbar_error_spew(container: *const libc::c_void, verbosity: libc::c_int) -> libc::c_int;
+
+    fn zbar_processor_set_visible(proc: *mut libc::c_void, visible: libc::c_int) -> libc::c_int;
+
+    fn zbar_processor_destroy(proc: *mut libc::c_void);
+}
+
 fn main() {
     let args = Args::parse();
 
-    println!("{args:?}");
+    if args.images.is_empty() {
+        panic!("ERROR: specify image file(s) to scan");
+    }
+
+    unsafe {
+        zbar_set_verbosity(args.verbose.into());
+
+        let processor = zbar_processor_create(0);
+
+        assert!(!processor.is_null());
+
+        if zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
+            _zbar_error_spew(processor, 0);
+            return;
+        }
+
+        if args.display {
+            zbar_processor_set_visible(processor, 1);
+        } else {
+            zbar_processor_set_visible(processor, 0);
+        }
+
+        zbar_processor_destroy(processor);
+    }
 }
