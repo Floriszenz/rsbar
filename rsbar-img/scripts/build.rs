@@ -22,4 +22,6 @@ fn main() {
     for lib in dynamic_libs {
         println!("cargo:rustc-link-lib=dylib={lib}");
     }
+
+    // TODO: Check if dbus is available when the dbus feature is enabled
 }

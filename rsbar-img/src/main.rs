@@ -8,6 +8,10 @@ struct Args {
     /// The image file(s) to scan
     images: Vec<PathBuf>,
 
+    /// Set decoder/scanner <CONFIG> to <VALUE> (or 1)
+    #[arg(short = 'S', long = "set", value_name = "CONFIG[=<VALUE>]")]
+    config: Vec<String>,
+
     /// Enable display of following images to the screen
     #[arg(short, long, overrides_with = "_no_display")]
     display: bool,
@@ -15,6 +19,10 @@ struct Args {
     /// Disable display of following images (default)
     #[arg(short = 'D', long = "nodisplay")]
     _no_display: bool,
+
+    /// Disable dbus message
+    #[arg(long, hide = cfg!(not(feature = "dbus")))]
+    nodbus: bool,
 
     /// Exit after scanning one bar code
     #[arg(short = '1', long)]
@@ -43,8 +51,6 @@ struct Args {
     /// Disable XML output format (default)
     #[arg(long = "noxml")]
     _no_xml: bool,
-    // TODO: -S<CONFIG>[=<VALUE>], --set <CONFIG>[=<VALUE>]\n set decoder/scanner <CONFIG> to <VALUE> (or 1)
-    // TODO: --nodbus (depending on feature) disable dbus message
 }
 
 #[link(name = "zbar", kind = "static")]
@@ -52,6 +58,11 @@ extern "C" {
     fn zbar_set_verbosity(level: libc::c_int);
 
     fn zbar_processor_create(threaded: libc::c_int) -> *mut libc::c_void;
+
+    fn zbar_processor_request_dbus(
+        proc: *mut libc::c_void,
+        req_dbus_enabled: libc::c_int,
+    ) -> libc::c_int;
 
     fn zbar_processor_init(
         proc: *const libc::c_void,
@@ -80,16 +91,16 @@ fn main() {
 
         assert!(!processor.is_null());
 
+        if cfg!(feature = "dbus") {
+            zbar_processor_request_dbus(processor, (!args.nodbus).into());
+        }
+
         if zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
             _zbar_error_spew(processor, 0);
             return;
         }
 
-        if args.display {
-            zbar_processor_set_visible(processor, 1);
-        } else {
-            zbar_processor_set_visible(processor, 0);
-        }
+        zbar_processor_set_visible(processor, args.display.into());
 
         zbar_processor_destroy(processor);
     }

@@ -11,3 +11,6 @@ build = "scripts/build.rs"
 [dependencies]
 clap = { version = "4.1.4", features = ["derive"] }
 libc = { version = "0.2.139" }
+
+[features]
+dbus = []
