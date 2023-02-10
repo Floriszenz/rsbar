@@ -11,6 +11,10 @@ static mut XMLLVL: i8 = 0;
 static mut POLYGON: i8 = 0;
 static mut ONESHOT: i8 = 0;
 static mut BINARY: i8 = 0;
+static mut SEQ: i8 = 0;
+
+static mut XML_BUF: *const libc::c_char = std::ptr::null();
+static mut XML_BUF_LEN: libc::c_uint = 0;
 
 const XML_HEAD: &str = "<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>\n";
 const XML_FOOT: &str = "</barcodes>\n";
@@ -68,6 +72,8 @@ struct Args {
 
 #[link(name = "zbar", kind = "static")]
 extern "C" {
+    static stdout: *mut libc::FILE;
+
     fn zbar_set_verbosity(level: libc::c_int);
 
     fn zbar_processor_create(threaded: libc::c_int) -> *mut libc::c_void;
@@ -101,10 +107,58 @@ extern "C" {
         val: libc::c_int,
     ) -> libc::c_int;
 
+    fn zbar_image_create() -> *mut libc::c_void;
+
+    fn zbar_image_set_format(img: *mut libc::c_void, fmt: libc::c_ulong);
+
+    fn zbar_image_set_size(img: *mut libc::c_void, w: libc::c_uint, h: libc::c_uint);
+
+    fn zbar_image_set_data(
+        img: *mut libc::c_void,
+        data: *mut libc::c_void,
+        len: libc::c_ulong,
+        cleanup: unsafe extern "C" fn(*mut libc::c_void),
+    );
+
+    fn zbar_image_free_data(img: *mut libc::c_void);
+
+    fn zbar_process_image(proc: *mut libc::c_void, img: *mut libc::c_void) -> libc::c_int;
+
+    fn zbar_image_first_symbol(img: *const libc::c_void) -> *const libc::c_void;
+
+    fn zbar_symbol_next(sym: *const libc::c_void) -> *const libc::c_void;
+
+    fn zbar_symbol_get_type(sym: *const libc::c_void) -> ZbarSymbolType;
+
+    fn zbar_symbol_get_data_length(sym: *const libc::c_void) -> libc::size_t;
+
+    fn zbar_get_symbol_name(sym: ZbarSymbolType) -> *const libc::c_char;
+
+    fn zbar_symbol_get_loc_size(sym: *const libc::c_void) -> libc::c_uint;
+
+    fn zbar_symbol_get_loc_x(sym: *const libc::c_void, idx: libc::c_uint) -> libc::c_int;
+
+    fn zbar_symbol_get_loc_y(sym: *const libc::c_void, idx: libc::c_uint) -> libc::c_int;
+
+    fn zbar_symbol_get_data(sym: *const libc::c_void) -> *const libc::c_char;
+
+    fn zbar_symbol_xml(
+        sym: *const libc::c_void,
+        buf: *mut *const libc::c_char,
+        len: *mut libc::c_uint,
+    ) -> *const libc::c_char;
+
+    fn zbar_image_destroy(img: *mut libc::c_void);
+
+    fn zbar_processor_is_visible(proc: *mut libc::c_void) -> libc::c_int;
+
+    fn zbar_processor_user_wait(proc: *mut libc::c_void, timeout: libc::c_int) -> libc::c_int;
+
     fn zbar_processor_destroy(proc: *mut libc::c_void);
 }
 
 #[repr(C)]
+#[derive(PartialEq)]
 enum ZbarSymbolType {
     /**< no symbol decoded */
     ZbarNone = 0,
@@ -206,6 +260,18 @@ enum ZbarConfig {
     YDensity,
 }
 
+const fn zbar_fourcc(
+    a: libc::c_char,
+    b: libc::c_char,
+    c: libc::c_char,
+    d: libc::c_char,
+) -> libc::c_ulong {
+    a as libc::c_ulong
+        | ((b as libc::c_ulong) << 8)
+        | ((c as libc::c_ulong) << 16)
+        | ((d as libc::c_ulong) << 24)
+}
+
 unsafe fn zbar_processor_parse_config(
     processor: *mut libc::c_void,
     config_string: *const libc::c_char,
@@ -240,6 +306,147 @@ unsafe fn parse_config(processor: *mut libc::c_void, config_string: *const libc:
     0
 }
 
+unsafe fn scan_image(filename: PathBuf, processor: *mut libc::c_void) -> libc::c_int {
+    if EXIT_CODE == 3 {
+        return -1;
+    }
+
+    let mut found: libc::c_int = 0;
+    let image = image::open(&filename).unwrap();
+
+    let zimage = zbar_image_create();
+    assert!(!zimage.is_null());
+    zbar_image_set_format(
+        zimage,
+        zbar_fourcc('Y' as i8, '8' as i8, '0' as i8, '0' as i8),
+    );
+
+    let width = image.width();
+    let height = image.height();
+    zbar_image_set_size(zimage, width, height);
+
+    // extract grayscale image pixels
+    // FIXME color!! ...preserve most color w/422P
+    // (but only if it's a color image)
+    let bloblen = (width * height) as usize;
+    let blob = libc::malloc(bloblen);
+    zbar_image_set_data(zimage, blob, bloblen as u64, zbar_image_free_data);
+
+    let bytes = image.into_luma8().into_raw();
+
+    libc::memcpy(blob, bytes.as_ptr().cast(), bloblen);
+
+    if XMLLVL == 1 {
+        XMLLVL += 1;
+        println!("<source href='{}'>", filename.display());
+    }
+
+    zbar_process_image(processor, zimage);
+
+    // output result data
+    let mut sym = zbar_image_first_symbol(zimage);
+
+    while !sym.is_null() {
+        let typ = zbar_symbol_get_type(sym);
+        let len = zbar_symbol_get_data_length(sym);
+
+        if typ == ZbarSymbolType::ZbarPartial {
+            continue;
+        } else if XMLLVL <= 0 {
+            if XMLLVL == 0 {
+                print!(
+                    "{}:",
+                    CStr::from_ptr(zbar_get_symbol_name(typ)).to_str().unwrap()
+                );
+            }
+
+            if POLYGON == 1 {
+                if zbar_symbol_get_loc_size(sym) > 0 {
+                    print!(
+                        "{},{}",
+                        zbar_symbol_get_loc_x(sym, 0),
+                        zbar_symbol_get_loc_y(sym, 0)
+                    );
+                }
+
+                for p in 1..zbar_symbol_get_loc_size(sym) {
+                    print!(
+                        " {},{}",
+                        zbar_symbol_get_loc_x(sym, p),
+                        zbar_symbol_get_loc_y(sym, p)
+                    );
+                }
+
+                print!(":");
+            }
+
+            if len > 0 && libc::fwrite(zbar_symbol_get_data(sym).cast(), len, 1, stdout) != 1 {
+                EXIT_CODE = 1;
+                return -1;
+            }
+        } else {
+            if XMLLVL < 3 {
+                XMLLVL += 1;
+                println!("<index num='{SEQ}'>");
+            }
+
+            zbar_symbol_xml(sym, &mut XML_BUF, &mut XML_BUF_LEN);
+
+            if libc::fwrite(XML_BUF.cast(), XML_BUF_LEN as libc::size_t, 1, stdout) != 1 {
+                EXIT_CODE = 1;
+                return -1;
+            }
+        }
+
+        found += 1;
+        NUM_SYMBOLS += 1;
+
+        if BINARY == 0 {
+            if ONESHOT == 1 {
+                if XMLLVL >= 0 {
+                    println!();
+                }
+
+                break;
+            } else {
+                println!();
+            }
+        }
+
+        sym = zbar_symbol_next(sym);
+    }
+
+    if XMLLVL > 2 {
+        XMLLVL -= 1;
+        println!("</index>");
+    }
+
+    libc::fflush(stdout);
+
+    zbar_image_destroy(zimage);
+
+    NUM_IMAGES += 1;
+
+    if zbar_processor_is_visible(processor) == 1 {
+        let rc = zbar_processor_user_wait(processor, -1);
+
+        if rc < 0 || rc == b'q'.into() || rc == b'Q'.into() {
+            EXIT_CODE = 3
+        }
+    }
+
+    if XMLLVL > 1 {
+        XMLLVL -= 1;
+        println!("</source>");
+    }
+
+    if found == 0 {
+        NOT_FOUND += 1;
+    }
+
+    0
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -250,6 +457,7 @@ fn main() {
     unsafe {
         // Parse program arguments
         ONESHOT = args.oneshot.into();
+        POLYGON = args.polygon.into();
 
         zbar_set_verbosity(args.verbose.into());
 
@@ -303,6 +511,16 @@ fn main() {
             if parse_config(processor, setting.as_ptr().cast()) != 0 {
                 return;
             }
+        }
+
+        SEQ = 0;
+
+        for image_path in args.images {
+            if scan_image(image_path, processor) != 0 {
+                return;
+            }
+
+            SEQ += 1;
         }
 
         // Clean up
