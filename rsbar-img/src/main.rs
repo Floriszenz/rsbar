@@ -3,6 +3,8 @@ use std::{borrow::BorrowMut, ffi::CStr, path::PathBuf, time::SystemTime};
 
 use clap::Parser;
 
+use rsbar_img::utils::cli_args::Args;
+
 static mut NOT_FOUND: i8 = 0;
 static mut EXIT_CODE: i8 = 0;
 static mut NUM_IMAGES: i8 = 0;
@@ -35,57 +37,6 @@ const WARNING_NOT_FOUND_TAIL: &str = "\t- is the barcode large enough in the ima
     \t\tDue to that, if you want, for example, ISBN-10, you should do:\n\
     \t\t$ zbarimg -Sisbn10.enable <files>\n\
     \n";
-
-#[derive(Debug, Parser)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// The image file(s) to scan
-    images: Vec<PathBuf>,
-
-    /// Set decoder/scanner <CONFIG> to <VALUE> (or 1)
-    #[arg(short = 'S', long = "set", value_name = "CONFIG[=<VALUE>]")]
-    config: Vec<String>,
-
-    /// Enable display of following images to the screen
-    #[arg(short, long, overrides_with = "_no_display")]
-    display: bool,
-
-    /// Disable display of following images (default)
-    #[arg(short = 'D', long = "nodisplay")]
-    _no_display: bool,
-
-    /// Disable dbus message
-    #[arg(long, hide = cfg!(not(feature = "dbus")))]
-    nodbus: bool,
-
-    /// Exit after scanning one bar code
-    #[arg(short = '1', long)]
-    oneshot: bool,
-
-    /// Output points delimiting code zone with decoded symbol data
-    #[arg(long)]
-    polygon: bool,
-
-    /// Minimal output, only print decoded symbol data
-    #[arg(short, long)]
-    quiet: bool,
-
-    /// Output decoded symbol data without converting charsets
-    #[arg(long)]
-    raw: bool,
-
-    /// Increase debug output level
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    verbose: u8, // TODO: Maybe refactor to an enum
-
-    /// Enable XML output format
-    #[arg(long, overrides_with = "_no_xml")]
-    xml: bool,
-
-    /// Disable XML output format (default)
-    #[arg(long = "noxml")]
-    _no_xml: bool,
-}
 
 #[link(name = "zbar", kind = "static")]
 extern "C" {
