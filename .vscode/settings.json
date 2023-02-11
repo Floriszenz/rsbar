@@ -7,5 +7,15 @@
     "[toml]": {
         "editor.defaultFormatter": "tamasfe.even-better-toml"
     },
-    "rust-analyzer.cargo.features": ["dbus"]
+    "rust-analyzer.cargo.features": [
+        "ean",
+        "databar",
+        "code128",
+        "code93",
+        "code39",
+        "codabar",
+        "i25",
+        "qrcode",
+        "sqcode"
+    ]
 }
