@@ -7,23 +7,7 @@ EXTRA_PROGRAMS =
 lib_LTLIBRARIES =
 pyexec_LTLIBRARIES =
 CLEANFILES =
-DISTCLEANFILES = \
-	ABOUT-NLS \
-	po/*.gmo \
-	po/*.mo \
-	po/Makefile.in.in \
-	po/Makevars.template \
-	po/POTFILES \
-	po/Rules-quot \
-	po/boldquot.sed \
-	po/en@boldquot.header \
-	po/en@quot.header \
-	po/insert-header.sin \
-	po/quot.sed \
-	po/remove-potcdate.sed \
-	po/remove-potcdate.sin \
-	po/stamp-po \
-	po/zbar.pot
+DISTCLEANFILES =
 MAINTAINERCLEANFILES =
 BUILT_SOURCES =
 EXTRA_DIST =
@@ -37,11 +21,6 @@ dist_doc_DATA = COPYING HACKING.md INSTALL.md LICENSE.md NEWS.md README.md TODO.
 include $(srcdir)/include/Makefile.am.inc
 
 SUBDIRS = zbar
-
-if USE_NLS
-  SUBDIRS += po
-  dist_doc_DATA += ABOUT-NLS
-endif
 
 zbar/libzbar.la:
 	$(MAKE) -C @builddir@/zbar libzbar.la
@@ -72,16 +51,6 @@ if HAVE_PYGTK2
 include $(srcdir)/pygtk/Makefile.am.inc
 endif
 endif
-if HAVE_QT
-include $(srcdir)/qt/Makefile.am.inc
-pkgconfig_DATA += zbar-qt.pc
-endif
-if HAVE_JAVA
-SUBDIRS += java
-endif
-if HAVE_NPAPI
-include $(srcdir)/plugin/Makefile.am.inc
-endif
 include $(srcdir)/test/Makefile.am.inc
 if HAVE_DOC
 include $(srcdir)/doc/Makefile.am.inc
@@ -92,21 +61,11 @@ dbusconfdir = @DBUS_CONFDIR@
 dbusconf_DATA = $(srcdir)/dbus/org.linuxtv.Zbar.conf
 endif
 
-EXTRA_DIST += zbar.ico zbar.nsi zbar-qt5.pc.in zbar-qt.pc.in \
-    dbus/org.linuxtv.Zbar.conf
+EXTRA_DIST += zbar.ico zbar.nsi dbus/org.linuxtv.Zbar.conf
 
 EXTRA_DIST += examples/*.png examples/sha1sum \
     examples/upcrpc.py examples/upcrpc.pl \
     examples/scan_image.c examples/scan_image.cpp examples/scan_image.vcproj
-
-EXTRA_DIST += perl/MANIFEST perl/README perl/Changes perl/COPYING.LIB \
-    perl/Makefile.PL perl/typemap perl/ZBar.xs perl/ppport.h \
-    perl/ZBar.pm perl/inc/Devel/CheckLib.pm perl/ZBar/Image.pod \
-    perl/ZBar/ImageScanner.pod perl/ZBar/Processor.pod perl/ZBar/Symbol.pod \
-    perl/examples/paginate.pl perl/examples/processor.pl \
-    perl/examples/read_one.pl perl/examples/scan_image.pl \
-    perl/t/barcode.png perl/t/ZBar.t perl/t/Decoder.t perl/t/Image.t \
-    perl/t/Processor.t perl/t/Scanner.t perl/t/pod.t perl/t/pod-coverage.t
 
 if WIN32
 dist_doc_DATA += README-windows.md

@@ -18,8 +18,6 @@ AllowShortBlocksOnASingleLine: true
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLambdasOnASingleLine: true
 AllowShortLoopsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: None
-AllowShortIfStatementsOnASingleLine: false
 AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
@@ -55,7 +53,7 @@ BreakConstructorInitializers: BeforeColon
 BreakAfterJavaFieldAnnotations: false
 BreakStringLiterals: false
 ColumnLimit: 80
-CommentPragmas: '^ IWYU pragma:'
+CommentPragmas: "^ IWYU pragma:"
 CompactNamespaces: false
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 4
@@ -68,30 +66,30 @@ FixNamespaceComments: false
 
 IncludeBlocks: Preserve
 IncludeCategories:
-  - Regex:           '"config\.h"'
-    Priority:        1
-    SortPriority:    1
-  - Regex:           '<^(glib).*>'
-    Priority:        2
-    SortPriority:    2
-  - Regex:           '<glib\.h>'
-    Priority:        3
-    SortPriority:    3
-  - Regex:           '<glib.*>'
-    Priority:        4
-    SortPriority:    4
-  - Regex:           '[\<\"]zbar\.h[\>\"]'
-    Priority:        5
-    SortPriority:    6
-  - Regex:           '[\<\"]zbar.*'
-    Priority:        6
-    SortPriority:    7
-  - Regex:           '<.*>'
-    Priority:        7
-    SortPriority:    5
-  - Regex:           '.*'
-    Priority:        8
-    SortPriority:    8
+  - Regex: '"config\.h"'
+    Priority: 1
+    SortPriority: 1
+  - Regex: "<^(glib).*>"
+    Priority: 2
+    SortPriority: 2
+  - Regex: '<glib\.h>'
+    Priority: 3
+    SortPriority: 3
+  - Regex: "<glib.*>"
+    Priority: 4
+    SortPriority: 4
+  - Regex: '[\<\"]zbar\.h[\>\"]'
+    Priority: 5
+    SortPriority: 6
+  - Regex: '[\<\"]zbar.*'
+    Priority: 6
+    SortPriority: 7
+  - Regex: "<.*>"
+    Priority: 7
+    SortPriority: 5
+  - Regex: ".*"
+    Priority: 8
+    SortPriority: 8
 SortIncludes: true
 
 IndentCaseLabels: false
@@ -101,8 +99,8 @@ IndentWrappedFunctionNames: false
 JavaScriptQuotes: Leave
 JavaScriptWrapImports: true
 KeepEmptyLinesAtTheStartOfBlocks: false
-MacroBlockBegin: ''
-MacroBlockEnd: ''
+MacroBlockBegin: ""
+MacroBlockEnd: ""
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 ObjCBinPackProtocolList: Auto
@@ -138,4 +136,3 @@ SpacesInSquareBrackets: false
 Standard: Cpp03
 TabWidth: 8
 UseTab: Always
-...

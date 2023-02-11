@@ -32,7 +32,6 @@ AC_SUBST([RELDATE], [2017-04-11])
 dnl widget libraries use their own versioning.
 dnl NB pygtk wrapper is *unversioned*
 AC_SUBST([ZGTK_LIB_VERSION], [0:2:0])
-AC_SUBST([ZQT_LIB_VERSION], [1:2:1])
 
 AC_DEFINE_UNQUOTED([ZBAR_VERSION_MAJOR],
   [[`echo "$PACKAGE_VERSION" | sed -e 's/\..*$//'`]],
@@ -133,19 +132,6 @@ ZBAR_CHK_CODE([pdf417], [PDF417 symbology (incomplete)])
 dnl libraries
 
 AC_SEARCH_LIBS([clock_gettime], [rt pthread])
-AM_ICONV()
-AM_GNU_GETTEXT([external])
-AM_GNU_GETTEXT_VERSION(0.20)
-AM_GNU_GETTEXT_REQUIRE_VERSION(0.18)
-AM_CONDITIONAL([USE_NLS], [test "x${USE_NLS}" = "xyes"])
-
-dnl libraries linkage
-AC_ARG_ENABLE([static_qt],
-  [AS_HELP_STRING([--enable-static-qt],
-    [Produce a static library for libzbarcam-qt])])
-
-AS_IF([test x$enable_static_qt = xyes], [AC_SUBST([LIBQT_EXTRA_LDFLAGS], ["-static"])])
-
 
 dnl poll support
 
@@ -475,20 +461,6 @@ AS_IF([test "x$have_IM7" = "xyes"],
 AM_CONDITIONAL([HAVE_MAGICK],
   [test "x$have_IM" = "xyes" || test "x$have_GM" = "xyes"])
 
-dnl Mozilla NPAPI
-AC_ARG_WITH([npapi],
-  [AS_HELP_STRING([--with-npapi],
-    [enable support for Firefox/Mozilla/OpenOffice plugin])],
-  [],
-  [with_npapi="no"])
-
-AS_IF([test "x$with_npapi" != "xno"],
-  [PKG_CHECK_MODULES([NPAPI], [firefox-plugin])
-   NPAPI_VERSION=`$PKG_CONFIG firefox-plugin --modversion`
-   AC_MSG_NOTICE([using firefox-plugin version $NPAPI_VERSION])])
-
-AM_CONDITIONAL([HAVE_NPAPI], [test "x$with_npapi" = "xyes"])
-
 dnl GTK
 dnl For now, defaults to GTK version 3
 
@@ -647,141 +619,6 @@ AS_IF([test "x$with_gir" = "xyes" && test "x$with_gtk" != "xno"],
 AS_IF([test "x$found_introspection" != "xyes"], [with_gir="no"])
 AM_CONDITIONAL([HAVE_INTROSPECTION], [test "x$with_gir" = "xyes"])
 
-dnl Qt
-AC_ARG_WITH([qt],
-  [AS_HELP_STRING([--without-qt],
-    [disable support for Qt widget])],
-  [],
-  [with_qt="yes"])
-
-dnl Qt6
-AC_ARG_WITH([qt6],
-  [AS_HELP_STRING([--with-qt6],
-    [If --with-qt, enable experimental support for Qt6 widget (currently broken)])],
-  [],
-  [with_qt6="no"])
-
-AS_IF([test "x$with_qt" != "xno"],
-      [AS_IF([test "x$with_qt6" != "xno"],
-	     PKG_CHECK_MODULES([QT],
-                               [Qt6],
-                               [MOC=`pkg-config Qt6 --variable=moc`
-                                QT_VERSION=`$PKG_CONFIG Qt6 --modversion`
-                                QT6_HEADERS=`pkg-config Qt6 --variable=headerdir`
-                                CPPFLAGS="$CPPFLAGS -I$QT6_HEADERS -I$QT6_HEADERS/QtWidgets -I$QT6_HEADERS/QtCore -I$QT6_HEADERS/QtGui"
-                                qt_pkgconfig_file="zbar-qt5.pc"
-                               ],
-                               [with_qt6="no"]))
-       AS_IF([test "x$with_qt6" = "xno"],
-             PKG_CHECK_MODULES([QT],
-                               [Qt5Core >= 5 Qt5Gui >= 5 Qt5Widgets >= 5.0 Qt5X11Extras >= 5.0],
-                               [MOC=`pkg-config Qt5 --variable=moc`
-                                QT_VERSION=`$PKG_CONFIG Qt5 --modversion`
-                                qt_pkgconfig_file="zbar-qt5.pc"
-                               ],
-                               [with_qt="no"]))
-      ])
-
-AC_ARG_VAR([MOC], [full path to Qt moc program])
-
-AM_CONDITIONAL([HAVE_QT], [test "x$with_qt" = "xyes"])
-
-AM_COND_IF([HAVE_QT],
-           [AC_MSG_NOTICE([using Qt version $QT_VERSION])
-            AC_MSG_NOTICE([using moc from $MOC])
-            CPPFLAGS="$CPPFLAGS $QT_CPPFLAGS"
-            LIBS="$LIBS $QT_LIBS"
-            AC_CONFIG_FILES([zbar-qt.pc:"${qt_pkgconfig_file}.in"])
-            #dnl -fPIC has no effect on Windows and breaks windres
-            AS_IF([test "x$win32" = "xno"], [CPPFLAGS="$CPPFLAGS -fPIC"])])
-
-dnl Java
-have_java="maybe"
-
-AC_ARG_VAR([JAVA_HOME], [root location of JDK])
-
-AC_ARG_VAR([JAVAC], [location of Java language compiler])
-AC_ARG_VAR([JAVAH], [location of Java header generator])
-
-dnl If $JAVA_HOME not defined, try to autodetect it
-AS_IF([test -z "$JAVA_HOME"],
-      [AC_PATH_PROGS([JAVAC], [javac jikes ecj gcj], [:], [$PATH])
-       AS_IF([test ! -z "$JAVAC"],
-	     [JAVA_HOME=$( readlink -f ${JAVAC} | rev | cut -d/ -f3- | rev )])])
-
-dnl If $JAVA_HOME is defined, set JAVA_PATH and JAVAC
-AS_IF([test ! -z "$JAVA_HOME"],
-      [JAVA_PATH="$JAVA_HOME/bin$PATH_SEPARATOR$PATH"
-       AS_IF([test -z "$JAVAC"],
-             [AC_PATH_PROGS([JAVAC], [javac jikes ecj gcj], [:], [$JAVA_PATH])])])
-
-AC_ARG_WITH([java],
-  [AS_HELP_STRING([--without-java],
-    [disable support for Java interface])],
-  [],
-  [with_java="check"])
-
-JAVAC=$(echo $JAVAC |sed 's/ecj/ecj -1.5/')
-
-dnl Javah was obsoleted on Java 8 and removed on Java 11. So, we need to
-dnl look strictly at the $JAVA_HOME in order to avoid mixing different versions
-AS_IF([test -z "$JAVAH"],
-      [AC_PATH_PROGS([JAVAH], [javah], [], [$JAVA_HOME/bin])])
-
-AM_CONDITIONAL([HAVE_JAVAH], [test "x$JAVAH" != "x"])
-
-AC_ARG_VAR([JAR], [location of Java archive tool])
-AC_PATH_PROGS([JAR], [jar], [:], [$JAVA_PATH])
-AS_IF([test "x$JAR" = "x:"], [have_java="no"])
-
-AC_ARG_VAR([JAVA], [location of Java application launcher])
-AC_PATH_PROGS([JAVA], [java], [/bin/false], [$JAVA_PATH])
-
-AC_ARG_VAR([CLASSPATH], [Java class path (include JUnit to run java tests)])
-AS_IF([test "x$CLASSPATH" = "x"], [CLASSPATH="."])
-
-dnl Search for Java unit test library
-AS_IF([test -z "$JUNIT_HOME"],
-      [JUNIT_HOME="/usr/share/java"])
-
-AS_IF([test -f "$JUNIT_HOME/junit4.jar"],
-      [JUNIT="$JUNIT_HOME/junit4.jar"],
-      [AS_IF([test -f "$JUNIT_HOME/junit.jar"],
-	    [JUNIT="$JUNIT_HOME/junit.jar"])])
-
-AS_IF([test "x$JUNIT" != "x"],
-      [AS_IF([test -f "/usr/share/java/hamcrest/all.jar"],
-	     [CLASSPATH="$JUNIT:/usr/share/java/hamcrest/all.jar:$CLASSPATH"
-              AC_SUBST(CLASSPATH)
-              with_java_unit="yes"])],
-      [AS_IF([test -f "/usr/share/java/hamcrest-all.jar"],
-             [CLASSPATH="$JUNIT:/usr/share/java/hamcrest-all.jar:$CLASSPATH"
-              AC_SUBST(CLASSPATH)
-              with_java_unit="yes"])])
-
-AM_CONDITIONAL([HAVE_JAVA_UNIT], [test "x$with_java_unit" = "xyes"])
-
-AC_ARG_VAR([JAVA_CFLAGS], [compiler flags for building JNI extensions])
-AS_IF([test "x$JAVA_CFLAGS" = "x" && test "x$JAVA_HOME" != "x"],
-  [JAVA_CFLAGS="-I$JAVA_HOME/include"])
-
-AS_IF([test -d "$JAVA_HOME/include/linux"],
-  [JAVA_CFLAGS="$JAVA_CFLAGS -I$JAVA_HOME/include/linux"])
-
-AS_IF([test "x$with_java" != "xno"],
-  [CPPFLAGS_save="$CPPFLAGS"
-   CPPFLAGS="$CPPFLAGS $JAVA_CFLAGS"
-   AC_CHECK_HEADERS([jni.h], [], [have_java="no"])
-   CPPFLAGS="$CPPFLAGS_save"
-   AS_IF([test "x$have_java" != "xno"],
-     [with_java="yes"],
-     [test "x$with_java" = "xyes"],
-     [AC_MSG_FAILURE([unable to find Java JNI! ensure CFLAGS are set appropriately or configure --without-java])],
-     [with_java="no"])
-])
-AM_CONDITIONAL([HAVE_JAVA], [test "x$with_java" = "xyes"])
-
-
 dnl header files
 
 dnl FIXME switches for shm, mmap
@@ -843,8 +680,6 @@ echo "Generating config files"
 AC_CONFIG_FILES([
 Makefile
 gtk/Makefile
-java/Makefile
-po/Makefile.in
 zbar/Makefile
 zbar.pc
 zbar-gtk.pc
@@ -860,9 +695,6 @@ dnl summary log
 echo ""
 echo "please verify that the detected configuration matches your expectations:"
 echo "------------------------------------------------------------------------"
-AS_IF([test "x$USE_NLS" = "xyes"],
-  [echo    "gettext                $USE_NLS"]
-)
 AS_IF([test "x$win32" != "xno"],
   [AS_IF([test "x$with_directshow" != "xno"],
     [echo "DirectShow driver      --with-directshow=$with_directshow"],
@@ -873,7 +705,6 @@ AS_IF([test "x$win32" != "xno"],
 
 AS_IF([test "x$with_python" != "xno"], pyver="\tpython${PYTHON_VERSION}")
 AS_IF([test "x$with_gtk" != "xno"], gtkver="\tGtk${GTK_VERSION}")
-AS_IF([test "x$with_qt" != "xno"], qtver="\tQt${QT_VERSION}")
 
 echo    "pthreads               --enable-pthread=$enable_pthread"
 echo    "doc                    --enable-doc=$enable_doc"
@@ -882,8 +713,6 @@ echo    "jpeg                   --with-jpeg=$with_jpeg"
 echo -e "Python                 --with-python=$with_python $pyver"
 echo -e "GTK                    --with-gtk=$with_gtk       $gtkver"
 echo    "GObject introspection  --with-gir=$with_gir"
-echo -e "Qt                     --with-qt=$with_qt         $qtver"
-echo    "Java                   --with-java=$with_java"
 
 AS_IF([test "x$win32" = "xno"],
   [echo "Dbus                   --with-dbus=$with_dbus"])
@@ -892,8 +721,6 @@ AS_IF([test "x$have_GM" = "xyes"],
   [echo "ImageMagick            --with-imagemagick=$with_imagemagick"])
 echo "Enabled codes:        $enabled_codes"
 echo "Disabled codes:       $disabled_codes"
-AS_IF([test "x$with_java" = "xyes"],
-  [echo "JAVA_HOME              $JAVA_HOME"])
 
 dnl Display "warnings" about disabled and experimental features
 
@@ -912,16 +739,5 @@ AS_IF([test "x$with_gtk" = "xno"],
   [echo "        => GTK support will *NOT* be built"])
 AS_IF([test "x$with_pygtk2" != "xyes" && test "xPYTHON_VERSION_MAJOR" = "x2"],
   [echo "        => the Python 2 GTK widget wrapper will *NOT* be built"])
-AS_IF([test "x$with_qt" != "xyes"],
-  [echo "        => the Qt widget will *NOT* be built"])
-AS_IF([test "x$with_qt" = "xyes" && test "x$enable_static_qt" = "xyes" ],
-  [echo "        => Building a static Qt library"])
-AS_IF([test "x$with_java" != "xyes"],
-  [echo "        => the Java interface will *NOT* be built"])
-AS_IF([test "x$with_java_unit" != "xyes"],
-  [echo "        => the Java unit test will *NOT* be enabled"])
-dnl echo "NPAPI Plugin     --with-npapi=$with_npapi"
-dnl AS_IF([test "x$with_mozilla" != "xyes"],
-dnl  [echo "       => the Mozilla/Firefox/OpenOffice plugin will *NOT* be built"])
 AS_IF([test "x$enable_pdf417" = "xyes"],
   [echo "        => the pdf417 code support is incomplete!"])
