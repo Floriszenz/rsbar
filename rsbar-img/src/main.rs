@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::{borrow::BorrowMut, ffi::CStr, path::PathBuf};
+use std::{borrow::BorrowMut, ffi::CStr, path::PathBuf, time::SystemTime};
 
 use clap::Parser;
 
@@ -13,11 +13,28 @@ static mut ONESHOT: i8 = 0;
 static mut BINARY: i8 = 0;
 static mut SEQ: i8 = 0;
 
-static mut XML_BUF: *const libc::c_char = std::ptr::null();
+static mut XML_BUF: *mut libc::c_char = std::ptr::null_mut();
 static mut XML_BUF_LEN: libc::c_uint = 0;
 
 const XML_HEAD: &str = "<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>\n";
 const XML_FOOT: &str = "</barcodes>\n";
+
+const WARNING_NOT_FOUND_HEAD: &str = "\n\
+    WARNING: barcode data was not detected in some image(s)\n\
+    Things to check:\n\
+    \t- is the barcode type supported? Currently supported symbologies are:\n";
+
+const WARNING_NOT_FOUND_TAIL: &str = "\t- is the barcode large enough in the image?\n\
+    \t- is the barcode mostly in focus?\n\
+    \t- is there sufficient contrast/illumination?\n\
+    \t- If the symbol is split in several barcodes, are they combined in one image?\n\
+    \t- Did you enable the barcode type?\n\
+    \t\tsome EAN/UPC codes are disabled by default. To enable all, use:\n\
+    \t\t$ zbarimg -S*.enable <files>\n\
+    \t\tPlease also notice that some variants take precedence over others.\n\
+    \t\tDue to that, if you want, for example, ISBN-10, you should do:\n\
+    \t\t$ zbarimg -Sisbn10.enable <files>\n\
+    \n";
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -144,7 +161,7 @@ extern "C" {
 
     fn zbar_symbol_xml(
         sym: *const libc::c_void,
-        buf: *mut *const libc::c_char,
+        buf: *mut *mut libc::c_char,
         len: *mut libc::c_uint,
     ) -> *const libc::c_char;
 
@@ -448,6 +465,7 @@ unsafe fn scan_image(filename: PathBuf, processor: *mut libc::c_void) -> libc::c
 }
 
 fn main() {
+    let start_time = SystemTime::now();
     let args = Args::parse();
 
     if args.images.is_empty() {
@@ -521,6 +539,70 @@ fn main() {
             }
 
             SEQ += 1;
+        }
+
+        /* ignore quit during last image */
+        if EXIT_CODE == 3 {
+            EXIT_CODE = 0;
+        }
+
+        if XMLLVL > 0 {
+            print!("{XML_FOOT}");
+            libc::fflush(stdout);
+        }
+
+        if !XML_BUF.is_null() {
+            libc::free(XML_BUF.cast());
+        }
+
+        if NUM_IMAGES > 0 && !args.quiet && XMLLVL <= 0 {
+            eprint!("scanned {NUM_SYMBOLS} barcode symbols from {NUM_IMAGES} images");
+            eprintln!(
+                " in {:.2} seconds",
+                start_time.elapsed().unwrap().as_secs_f32()
+            );
+
+            if NOT_FOUND == 1 {
+                eprint!("{WARNING_NOT_FOUND_HEAD}");
+
+                #[cfg(feature = "ean")]
+                eprintln!(
+                    "\t. EAN/UPC (EAN-13, EAN-8, EAN-2, EAN-5, UPC-A, UPC-E, ISBN-10, ISBN-13)"
+                );
+
+                #[cfg(feature = "databar")]
+                eprintln!("\t. DataBar, DataBar Expanded");
+
+                #[cfg(feature = "code128")]
+                eprintln!("\t. Code 128");
+
+                #[cfg(feature = "code93")]
+                eprintln!("\t. Code 93");
+
+                #[cfg(feature = "code39")]
+                eprintln!("\t. Code 39");
+
+                #[cfg(feature = "codabar")]
+                eprintln!("\t. Codabar");
+
+                #[cfg(feature = "i25")]
+                eprintln!("\t. Interleaved 2 of 5");
+
+                #[cfg(feature = "qrcode")]
+                eprintln!("\t. QR code");
+
+                #[cfg(feature = "sqcode")]
+                eprintln!("\t. SQ code");
+
+                #[cfg(feature = "pdf417")]
+                eprintln!("\t. PDF 417");
+
+                eprint!("{WARNING_NOT_FOUND_TAIL}");
+            }
+        }
+
+        if NUM_IMAGES > 0 && NOT_FOUND == 1 && EXIT_CODE == 0 {
+            EXIT_CODE = 4;
         }
 
         // Clean up

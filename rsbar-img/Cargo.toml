@@ -15,3 +15,14 @@ image = { version = "0.24.5" }
 
 [features]
 dbus = []
+# Symbol features
+ean = []
+databar = []
+code128 = []
+code93 = []
+code39 = []
+codabar = []
+i25 = []
+qrcode = []
+sqcode = []
+pdf417 = []
