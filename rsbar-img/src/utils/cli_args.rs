@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use crate::errors::{ProgramError, ProgramResult};
+
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
 pub struct Args {
@@ -46,9 +48,19 @@ pub struct Args {
 
     /// Enable XML output format
     #[arg(long, overrides_with = "_no_xml")]
-    pub xml: bool,
+    pub xml: bool, // TODO: Maybe use an optional path for output - would not require hacky output to stderr
 
     /// Disable XML output format (default)
     #[arg(long = "noxml")]
     _no_xml: bool,
+}
+
+impl Args {
+    pub fn check_images(&self) -> ProgramResult<()> {
+        if self.images.is_empty() {
+            return Err(ProgramError::NoImagePassed);
+        }
+
+        Ok(())
+    }
 }

@@ -1,9 +1,11 @@
-#![allow(dead_code)]
 use std::{borrow::BorrowMut, ffi::CStr, path::PathBuf, time::SystemTime};
 
 use clap::Parser;
 
-use rsbar_img::utils::cli_args::Args;
+use rsbar_img::{
+    errors::{ProgramError, ProgramResult},
+    utils::cli_args::Args,
+};
 
 static mut NOT_FOUND: i8 = 0;
 static mut EXIT_CODE: i8 = 0;
@@ -274,13 +276,13 @@ unsafe fn parse_config(processor: *mut libc::c_void, config_string: *const libc:
     0
 }
 
-unsafe fn scan_image(filename: PathBuf, processor: *mut libc::c_void) -> libc::c_int {
+unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::c_int {
     if EXIT_CODE == 3 {
         return -1;
     }
 
     let mut found: libc::c_int = 0;
-    let image = image::open(&filename).unwrap();
+    let image = image::open(filename).unwrap();
 
     let zimage = zbar_image_create();
     assert!(!zimage.is_null());
@@ -415,13 +417,11 @@ unsafe fn scan_image(filename: PathBuf, processor: *mut libc::c_void) -> libc::c
     0
 }
 
-fn main() {
+fn main() -> ProgramResult<()> {
     let start_time = SystemTime::now();
     let args = Args::parse();
 
-    if args.images.is_empty() {
-        panic!("ERROR: specify image file(s) to scan");
-    }
+    args.check_images()?;
 
     unsafe {
         // Parse program arguments
@@ -452,7 +452,7 @@ fn main() {
 
         if zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
             _zbar_error_spew(processor, 0);
-            return;
+            return Err(ProgramError::ProcessorInitFailed);
         }
 
         // If XML enabled, print head of XML output
@@ -478,15 +478,17 @@ fn main() {
 
         for setting in args.config {
             if parse_config(processor, setting.as_ptr().cast()) != 0 {
-                return;
+                return Err(ProgramError::InvalidConfig(setting));
             }
         }
 
         SEQ = 0;
 
         for image_path in args.images {
-            if scan_image(image_path, processor) != 0 {
-                return;
+            if scan_image(&image_path, processor) != 0 {
+                return Err(ProgramError::ImageScanFailed(
+                    image_path.display().to_string(),
+                ));
             }
 
             SEQ += 1;
@@ -559,4 +561,6 @@ fn main() {
         // Clean up
         zbar_processor_destroy(processor);
     }
+
+    Ok(())
 }
