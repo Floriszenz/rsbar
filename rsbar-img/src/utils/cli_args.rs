@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::errors::{ProgramError, ProgramResult};
+use crate::{
+    errors::{ProgramError, ProgramResult},
+    utils,
+};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -59,6 +62,14 @@ impl Args {
     pub fn check_images(&self) -> ProgramResult<()> {
         if self.images.is_empty() {
             return Err(ProgramError::NoImagePassed);
+        }
+
+        Ok(())
+    }
+
+    pub fn parse_config(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
+        for setting in self.config.iter() {
+            utils::parse_config(processor, setting)?;
         }
 
         Ok(())

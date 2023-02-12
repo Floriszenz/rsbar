@@ -43,16 +43,8 @@ const WARNING_NOT_FOUND_TAIL: &str = "\t- is the barcode large enough in the ima
     \t\t$ zbarimg -Sisbn10.enable <files>\n\
     \n";
 
-const fn zbar_fourcc(
-    a: libc::c_char,
-    b: libc::c_char,
-    c: libc::c_char,
-    d: libc::c_char,
-) -> libc::c_ulong {
-    a as libc::c_ulong
-        | ((b as libc::c_ulong) << 8)
-        | ((c as libc::c_ulong) << 16)
-        | ((d as libc::c_ulong) << 24)
+const fn zbar_fourcc(a: u8, b: u8, c: u8, d: u8) -> u64 {
+    a as u64 | ((b as u64) << 8) | ((c as u64) << 16) | ((d as u64) << 24)
 }
 
 unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Args) -> libc::c_int {
@@ -65,10 +57,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Ar
 
     let zimage = ffi::zbar_image_create();
     assert!(!zimage.is_null());
-    ffi::zbar_image_set_format(
-        zimage,
-        zbar_fourcc('Y' as i8, '8' as i8, '0' as i8, '0' as i8),
-    );
+    ffi::zbar_image_set_format(zimage, zbar_fourcc(b'Y', b'8', b'0', b'0'));
 
     let width = image.width();
     let height = image.height();
@@ -250,9 +239,7 @@ pub fn run() -> ProgramResult<()> {
         // Apply other arguments to processor instance
         ffi::zbar_processor_set_visible(processor, args.display.into());
 
-        for setting in args.config.iter() {
-            utils::parse_config(processor, setting)?;
-        }
+        args.parse_config(processor)?;
 
         SEQ = 0;
 

@@ -42,7 +42,7 @@ extern "C" {
 
     pub fn zbar_image_set_data(
         img: *mut libc::c_void,
-        data: *mut libc::c_void,
+        data: *const libc::c_void,
         len: libc::c_ulong,
         cleanup: unsafe extern "C" fn(*mut libc::c_void),
     );
