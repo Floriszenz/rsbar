@@ -20,9 +20,6 @@ static mut XMLLVL: i8 = 0;
 static mut USE_BINARY_OUTPUT: bool = false; // TODO: Replace this with a `processor.get_config("binary")` method at a later point of refactoring
 static mut SEQ: i8 = 0;
 
-static mut XML_BUF: *mut libc::c_char = std::ptr::null_mut();
-static mut XML_BUF_LEN: libc::c_uint = 0;
-
 const XML_HEAD: &str = "<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>\n";
 const XML_FOOT: &str = "</barcodes>\n";
 
@@ -131,9 +128,9 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Ar
                 println!("<index num='{SEQ}'>");
             }
 
-            ffi::zbar_symbol_xml(sym, &mut XML_BUF, &mut XML_BUF_LEN);
+            let symbol_xml = ffi::zbar_symbol_xml(sym, &mut std::ptr::null_mut(), &mut 0);
 
-            print!("{}", CStr::from_ptr(XML_BUF).to_str().unwrap());
+            print!("{}", CStr::from_ptr(symbol_xml).to_str().unwrap());
         }
 
         found += 1;
@@ -260,10 +257,6 @@ pub fn run() -> ProgramResult<()> {
 
         if XMLLVL > 0 {
             print!("{XML_FOOT}");
-        }
-
-        if !XML_BUF.is_null() {
-            libc::free(XML_BUF.cast());
         }
 
         if NUM_IMAGES > 0 && !args.quiet && XMLLVL <= 0 {
