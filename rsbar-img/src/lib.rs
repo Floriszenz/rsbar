@@ -17,8 +17,6 @@ static mut EXIT_CODE: i8 = 0;
 static mut NUM_IMAGES: i8 = 0;
 static mut NUM_SYMBOLS: i8 = 0;
 static mut XMLLVL: i8 = 0;
-static mut POLYGON: i8 = 0;
-static mut ONESHOT: i8 = 0;
 static mut BINARY: i8 = 0;
 static mut SEQ: i8 = 0;
 
@@ -91,7 +89,7 @@ unsafe fn parse_config(processor: *mut libc::c_void, config_string: *const libc:
     0
 }
 
-unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::c_int {
+unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Args) -> libc::c_int {
     if EXIT_CODE == 3 {
         return -1;
     }
@@ -146,7 +144,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
                 );
             }
 
-            if POLYGON == 1 {
+            if args.polygon {
                 if ffi::zbar_symbol_get_loc_size(sym) > 0 {
                     print!(
                         "{},{}",
@@ -187,7 +185,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
         NUM_SYMBOLS += 1;
 
         if BINARY == 0 {
-            if ONESHOT == 1 {
+            if args.oneshot {
                 if XMLLVL >= 0 {
                     println!();
                 }
@@ -238,9 +236,6 @@ pub fn run() -> ProgramResult<()> {
 
     unsafe {
         // Parse program arguments
-        ONESHOT = args.oneshot.into();
-        POLYGON = args.polygon.into();
-
         ffi::zbar_set_verbosity(args.verbose.into());
 
         if args.xml && XMLLVL >= 0 {
@@ -289,16 +284,16 @@ pub fn run() -> ProgramResult<()> {
         // Apply other arguments to processor instance
         ffi::zbar_processor_set_visible(processor, args.display.into());
 
-        for setting in args.config {
+        for setting in args.config.iter() {
             if parse_config(processor, setting.as_ptr().cast()) != 0 {
-                return Err(ProgramError::InvalidConfig(setting));
+                return Err(ProgramError::InvalidConfig(String::from(setting)));
             }
         }
 
         SEQ = 0;
 
-        for image_path in args.images {
-            if scan_image(&image_path, processor) != 0 {
+        for image_path in args.images.iter() {
+            if scan_image(image_path, processor, &args) != 0 {
                 return Err(ProgramError::ImageScanFailed(
                     image_path.display().to_string(),
                 ));
