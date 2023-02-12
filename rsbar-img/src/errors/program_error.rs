@@ -10,7 +10,8 @@ pub type ProgramResult<T> = std::result::Result<T, ProgramError>;
 pub enum ProgramError {
     NoImagePassed,
     ProcessorInitFailed,
-    InvalidConfig(String),
+    ConfigParseFailed(String),
+    ConfigSetFailed(String),
     ImageScanFailed(String),
 }
 
@@ -19,8 +20,14 @@ impl fmt::Display for ProgramError {
         match self {
             ProgramError::NoImagePassed => write!(f, "Specify image file(s) to scan"),
             ProgramError::ProcessorInitFailed => write!(f, "Failed to initialize the processor"),
-            ProgramError::InvalidConfig(setting) => {
+            ProgramError::ConfigParseFailed(setting) => {
                 write!(f, "Failed to parse the config \"{setting}\"")
+            }
+            ProgramError::ConfigSetFailed(setting) => {
+                write!(
+                    f,
+                    "Failed to set the config \"{setting}\" for the processor"
+                )
             }
             ProgramError::ImageScanFailed(image_path) => {
                 write!(f, "Failed to scan the image \"{image_path}\"")
@@ -34,7 +41,8 @@ impl Error for ProgramError {
         match *self {
             ProgramError::NoImagePassed => None,
             ProgramError::ProcessorInitFailed => None,
-            ProgramError::InvalidConfig(..) => None,
+            ProgramError::ConfigParseFailed(..) => None,
+            ProgramError::ConfigSetFailed(..) => None,
             ProgramError::ImageScanFailed(..) => None,
         }
     }
@@ -42,11 +50,6 @@ impl Error for ProgramError {
 
 impl Termination for ProgramError {
     fn report(self) -> ExitCode {
-        match self {
-            ProgramError::NoImagePassed => ExitCode::from(1),
-            ProgramError::ProcessorInitFailed => ExitCode::from(1),
-            ProgramError::InvalidConfig(..) => ExitCode::from(1),
-            ProgramError::ImageScanFailed(..) => ExitCode::from(1),
-        }
+        ExitCode::FAILURE
     }
 }

@@ -2,13 +2,13 @@ mod errors;
 mod ffi;
 mod utils;
 
-use std::{borrow::BorrowMut, ffi::CStr, path::PathBuf, time::SystemTime};
+use std::{ffi::CStr, path::PathBuf, time::SystemTime};
 
 use clap::Parser;
 
 use crate::{
     errors::{ProgramError, ProgramResult},
-    ffi::{ZbarConfig, ZbarSymbolType},
+    ffi::ZbarSymbolType,
     utils::cli_args::Args,
 };
 
@@ -53,40 +53,6 @@ const fn zbar_fourcc(
         | ((b as libc::c_ulong) << 8)
         | ((c as libc::c_ulong) << 16)
         | ((d as libc::c_ulong) << 24)
-}
-
-unsafe fn zbar_processor_parse_config(
-    processor: *mut libc::c_void,
-    config_string: *const libc::c_char,
-) -> libc::c_int {
-    let mut sym: ZbarSymbolType = ZbarSymbolType::ZbarNone;
-    let mut cfg: ZbarConfig = ZbarConfig::Enable;
-    let mut val: libc::c_int = 0;
-
-    let parse_res = ffi::zbar_parse_config(
-        config_string,
-        sym.borrow_mut(),
-        cfg.borrow_mut(),
-        val.borrow_mut(),
-    );
-
-    if parse_res != 0 {
-        return parse_res;
-    }
-
-    ffi::zbar_processor_set_config(processor, sym, cfg, val)
-}
-
-unsafe fn parse_config(processor: *mut libc::c_void, config_string: *const libc::c_char) -> i8 {
-    if zbar_processor_parse_config(processor, config_string) != 0 {
-        return 1;
-    }
-
-    if CStr::from_ptr(config_string) == CStr::from_ptr(b"binary\0".as_ptr().cast()) {
-        BINARY = 1;
-    }
-
-    0
 }
 
 unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Args) -> libc::c_int {
@@ -285,9 +251,7 @@ pub fn run() -> ProgramResult<()> {
         ffi::zbar_processor_set_visible(processor, args.display.into());
 
         for setting in args.config.iter() {
-            if parse_config(processor, setting.as_ptr().cast()) != 0 {
-                return Err(ProgramError::InvalidConfig(String::from(setting)));
-            }
+            utils::parse_config(processor, setting)?;
         }
 
         SEQ = 0;
