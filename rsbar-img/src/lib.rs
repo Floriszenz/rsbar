@@ -45,8 +45,6 @@ const WARNING_NOT_FOUND_TAIL: &str = "\t- is the barcode large enough in the ima
 
 #[link(name = "zbar", kind = "static")]
 extern "C" {
-    static stdout: *mut libc::FILE;
-
     fn zbar_set_verbosity(level: libc::c_int);
 
     fn zbar_processor_create(threaded: libc::c_int) -> *mut libc::c_void;
@@ -102,8 +100,6 @@ extern "C" {
     fn zbar_symbol_next(sym: *const libc::c_void) -> *const libc::c_void;
 
     fn zbar_symbol_get_type(sym: *const libc::c_void) -> ZbarSymbolType;
-
-    fn zbar_symbol_get_data_length(sym: *const libc::c_void) -> libc::size_t;
 
     fn zbar_get_symbol_name(sym: ZbarSymbolType) -> *const libc::c_char;
 
@@ -321,7 +317,6 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
 
     while !sym.is_null() {
         let typ = zbar_symbol_get_type(sym);
-        let len = zbar_symbol_get_data_length(sym);
 
         if typ == ZbarSymbolType::ZbarPartial {
             continue;
@@ -353,10 +348,10 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
                 print!(":");
             }
 
-            if len > 0 && libc::fwrite(zbar_symbol_get_data(sym).cast(), len, 1, stdout) != 1 {
-                EXIT_CODE = 1;
-                return -1;
-            }
+            print!(
+                "{}",
+                CStr::from_ptr(zbar_symbol_get_data(sym)).to_str().unwrap()
+            );
         } else {
             if XMLLVL < 3 {
                 XMLLVL += 1;
@@ -365,10 +360,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
 
             zbar_symbol_xml(sym, &mut XML_BUF, &mut XML_BUF_LEN);
 
-            if libc::fwrite(XML_BUF.cast(), XML_BUF_LEN as libc::size_t, 1, stdout) != 1 {
-                EXIT_CODE = 1;
-                return -1;
-            }
+            print!("{}", CStr::from_ptr(XML_BUF).to_str().unwrap());
         }
 
         found += 1;
@@ -393,8 +385,6 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
         XMLLVL -= 1;
         println!("</index>");
     }
-
-    libc::fflush(stdout);
 
     zbar_image_destroy(zimage);
 
@@ -504,7 +494,6 @@ pub fn run() -> ProgramResult<()> {
 
         if XMLLVL > 0 {
             print!("{XML_FOOT}");
-            libc::fflush(stdout);
         }
 
         if !XML_BUF.is_null() {
