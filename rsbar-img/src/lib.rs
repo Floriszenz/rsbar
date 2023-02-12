@@ -1,4 +1,5 @@
 mod errors;
+mod ffi;
 mod utils;
 
 use std::{borrow::BorrowMut, ffi::CStr, path::PathBuf, time::SystemTime};
@@ -7,6 +8,7 @@ use clap::Parser;
 
 use crate::{
     errors::{ProgramError, ProgramResult},
+    ffi::{ZbarConfig, ZbarSymbolType},
     utils::cli_args::Args,
 };
 
@@ -43,192 +45,6 @@ const WARNING_NOT_FOUND_TAIL: &str = "\t- is the barcode large enough in the ima
     \t\t$ zbarimg -Sisbn10.enable <files>\n\
     \n";
 
-#[link(name = "zbar", kind = "static")]
-extern "C" {
-    fn zbar_set_verbosity(level: libc::c_int);
-
-    fn zbar_processor_create(threaded: libc::c_int) -> *mut libc::c_void;
-
-    fn zbar_processor_request_dbus(
-        proc: *mut libc::c_void,
-        req_dbus_enabled: libc::c_int,
-    ) -> libc::c_int;
-
-    fn zbar_processor_init(
-        proc: *const libc::c_void,
-        dev: *const libc::c_char,
-        enable_display: libc::c_int,
-    ) -> libc::c_int;
-
-    fn _zbar_error_spew(container: *const libc::c_void, verbosity: libc::c_int) -> libc::c_int;
-
-    fn zbar_processor_set_visible(proc: *mut libc::c_void, visible: libc::c_int) -> libc::c_int;
-
-    fn zbar_parse_config(
-        cfgstr: *const libc::c_char,
-        sym: *mut ZbarSymbolType,
-        cfg: *mut ZbarConfig,
-        val: *mut libc::c_int,
-    ) -> libc::c_int;
-
-    fn zbar_processor_set_config(
-        proc: *mut libc::c_void,
-        sym: ZbarSymbolType,
-        cfg: ZbarConfig,
-        val: libc::c_int,
-    ) -> libc::c_int;
-
-    fn zbar_image_create() -> *mut libc::c_void;
-
-    fn zbar_image_set_format(img: *mut libc::c_void, fmt: libc::c_ulong);
-
-    fn zbar_image_set_size(img: *mut libc::c_void, w: libc::c_uint, h: libc::c_uint);
-
-    fn zbar_image_set_data(
-        img: *mut libc::c_void,
-        data: *mut libc::c_void,
-        len: libc::c_ulong,
-        cleanup: unsafe extern "C" fn(*mut libc::c_void),
-    );
-
-    fn zbar_image_free_data(img: *mut libc::c_void);
-
-    fn zbar_process_image(proc: *mut libc::c_void, img: *mut libc::c_void) -> libc::c_int;
-
-    fn zbar_image_first_symbol(img: *const libc::c_void) -> *const libc::c_void;
-
-    fn zbar_symbol_next(sym: *const libc::c_void) -> *const libc::c_void;
-
-    fn zbar_symbol_get_type(sym: *const libc::c_void) -> ZbarSymbolType;
-
-    fn zbar_get_symbol_name(sym: ZbarSymbolType) -> *const libc::c_char;
-
-    fn zbar_symbol_get_loc_size(sym: *const libc::c_void) -> libc::c_uint;
-
-    fn zbar_symbol_get_loc_x(sym: *const libc::c_void, idx: libc::c_uint) -> libc::c_int;
-
-    fn zbar_symbol_get_loc_y(sym: *const libc::c_void, idx: libc::c_uint) -> libc::c_int;
-
-    fn zbar_symbol_get_data(sym: *const libc::c_void) -> *const libc::c_char;
-
-    fn zbar_symbol_xml(
-        sym: *const libc::c_void,
-        buf: *mut *mut libc::c_char,
-        len: *mut libc::c_uint,
-    ) -> *const libc::c_char;
-
-    fn zbar_image_destroy(img: *mut libc::c_void);
-
-    fn zbar_processor_is_visible(proc: *mut libc::c_void) -> libc::c_int;
-
-    fn zbar_processor_user_wait(proc: *mut libc::c_void, timeout: libc::c_int) -> libc::c_int;
-
-    fn zbar_processor_destroy(proc: *mut libc::c_void);
-}
-
-#[repr(C)]
-#[derive(PartialEq)]
-enum ZbarSymbolType {
-    /**< no symbol decoded */
-    ZbarNone = 0,
-    /**< intermediate status */
-    ZbarPartial = 1,
-    /**< GS1 2-digit add-on */
-    ZbarEan2 = 2,
-    /**< GS1 5-digit add-on */
-    ZbarEan5 = 5,
-    /**< EAN-8 */
-    ZbarEan8 = 8,
-    /**< UPC-E */
-    ZbarUpce = 9,
-    /**< ISBN-10 (from EAN-13). @since 0.4 */
-    ZbarIsbn10 = 10,
-    /**< UPC-A */
-    ZbarUpca = 12,
-    /**< EAN-13 */
-    ZbarEan13 = 13,
-    /**< ISBN-13 (from EAN-13). @since 0.4 */
-    ZbarIsbn13 = 14,
-    /**< EAN/UPC composite */
-    ZbarComposite = 15,
-    /**< Interleaved 2 of 5. @since 0.4 */
-    ZbarI25 = 25,
-    /**< GS1 DataBar (RSS). @since 0.11 */
-    ZbarDatabar = 34,
-    /**< GS1 DataBar Expanded. @since 0.11 */
-    ZbarDatabarExp = 35,
-    /**< Codabar. @since 0.11 */
-    ZbarCodabar = 38,
-    /**< Code 39. @since 0.4 */
-    ZbarCode39 = 39,
-    /**< PDF417. @since 0.6 */
-    ZbarPdf417 = 57,
-    /**< QR Code. @since 0.10 */
-    ZbarQrcode = 64,
-    /**< SQ Code. @since 0.20.1 */
-    ZbarSqcode = 80,
-    /**< Code 93. @since 0.11 */
-    ZbarCode93 = 93,
-    /**< Code 128 */
-    ZbarCode128 = 128,
-
-    /*
-     * Please see _zbar_get_symbol_hash() if adding
-     * anything after 128
-     */
-    /** mask for base symbol type.
-     * @deprecated in 0.11, remove this from existing code
-     */
-    ZbarSymbol = 0x00ff,
-    /** 2-digit add-on flag.
-     * @deprecated in 0.11, a ::ZBAR_EAN2 component is used for
-     * 2-digit GS1 add-ons
-     */
-    ZbarAddon2 = 0x0200,
-    /** 5-digit add-on flag.
-     * @deprecated in 0.11, a ::ZBAR_EAN5 component is used for
-     * 5-digit GS1 add-ons
-     */
-    ZbarAddon5 = 0x0500,
-    /** add-on flag mask.
-     * @deprecated in 0.11, GS1 add-ons are represented using composite
-     * symbols of type ::ZBAR_COMPOSITE; add-on components use ::ZBAR_EAN2
-     * or ::ZBAR_EAN5
-     */
-    ZbarAddon = 0x0700,
-}
-
-#[repr(C)]
-enum ZbarConfig {
-    /**< enable symbology/feature */
-    Enable = 0,
-    /**< enable check digit when optional */
-    AddCheck,
-    /**< return check digit when present */
-    EmitCheck,
-    /**< enable full ASCII character set */
-    Ascii,
-    /**< don't convert binary data to text */
-    Binary,
-    /**< number of boolean decoder configs */
-    Num,
-    /**< minimum data length for valid decode */
-    MinLen = 0x20,
-    /**< maximum data length for valid decode */
-    MaxLen,
-    /**< required video consistency frames */
-    Uncertainty = 0x40,
-    /**< enable scanner to collect position data */
-    Position = 0x80,
-    /**< if fails to decode, test inverted */
-    TestInverted,
-
-    /**< image scanner vertical scan density */
-    XDensity = 0x100,
-    /**< image scanner horizontal scan density */
-    YDensity,
-}
-
 const fn zbar_fourcc(
     a: libc::c_char,
     b: libc::c_char,
@@ -249,7 +65,7 @@ unsafe fn zbar_processor_parse_config(
     let mut cfg: ZbarConfig = ZbarConfig::Enable;
     let mut val: libc::c_int = 0;
 
-    let parse_res = zbar_parse_config(
+    let parse_res = ffi::zbar_parse_config(
         config_string,
         sym.borrow_mut(),
         cfg.borrow_mut(),
@@ -260,7 +76,7 @@ unsafe fn zbar_processor_parse_config(
         return parse_res;
     }
 
-    zbar_processor_set_config(processor, sym, cfg, val)
+    ffi::zbar_processor_set_config(processor, sym, cfg, val)
 }
 
 unsafe fn parse_config(processor: *mut libc::c_void, config_string: *const libc::c_char) -> i8 {
@@ -283,23 +99,23 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
     let mut found: libc::c_int = 0;
     let image = image::open(filename).unwrap();
 
-    let zimage = zbar_image_create();
+    let zimage = ffi::zbar_image_create();
     assert!(!zimage.is_null());
-    zbar_image_set_format(
+    ffi::zbar_image_set_format(
         zimage,
         zbar_fourcc('Y' as i8, '8' as i8, '0' as i8, '0' as i8),
     );
 
     let width = image.width();
     let height = image.height();
-    zbar_image_set_size(zimage, width, height);
+    ffi::zbar_image_set_size(zimage, width, height);
 
     // extract grayscale image pixels
     // FIXME color!! ...preserve most color w/422P
     // (but only if it's a color image)
     let bloblen = (width * height) as usize;
     let blob = libc::malloc(bloblen);
-    zbar_image_set_data(zimage, blob, bloblen as u64, zbar_image_free_data);
+    ffi::zbar_image_set_data(zimage, blob, bloblen as u64, ffi::zbar_image_free_data);
 
     let bytes = image.into_luma8().into_raw();
 
@@ -310,13 +126,13 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
         println!("<source href='{}'>", filename.display());
     }
 
-    zbar_process_image(processor, zimage);
+    ffi::zbar_process_image(processor, zimage);
 
     // output result data
-    let mut sym = zbar_image_first_symbol(zimage);
+    let mut sym = ffi::zbar_image_first_symbol(zimage);
 
     while !sym.is_null() {
-        let typ = zbar_symbol_get_type(sym);
+        let typ = ffi::zbar_symbol_get_type(sym);
 
         if typ == ZbarSymbolType::ZbarPartial {
             continue;
@@ -324,24 +140,26 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
             if XMLLVL == 0 {
                 print!(
                     "{}:",
-                    CStr::from_ptr(zbar_get_symbol_name(typ)).to_str().unwrap()
+                    CStr::from_ptr(ffi::zbar_get_symbol_name(typ))
+                        .to_str()
+                        .unwrap()
                 );
             }
 
             if POLYGON == 1 {
-                if zbar_symbol_get_loc_size(sym) > 0 {
+                if ffi::zbar_symbol_get_loc_size(sym) > 0 {
                     print!(
                         "{},{}",
-                        zbar_symbol_get_loc_x(sym, 0),
-                        zbar_symbol_get_loc_y(sym, 0)
+                        ffi::zbar_symbol_get_loc_x(sym, 0),
+                        ffi::zbar_symbol_get_loc_y(sym, 0)
                     );
                 }
 
-                for p in 1..zbar_symbol_get_loc_size(sym) {
+                for p in 1..ffi::zbar_symbol_get_loc_size(sym) {
                     print!(
                         " {},{}",
-                        zbar_symbol_get_loc_x(sym, p),
-                        zbar_symbol_get_loc_y(sym, p)
+                        ffi::zbar_symbol_get_loc_x(sym, p),
+                        ffi::zbar_symbol_get_loc_y(sym, p)
                     );
                 }
 
@@ -350,7 +168,9 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
 
             print!(
                 "{}",
-                CStr::from_ptr(zbar_symbol_get_data(sym)).to_str().unwrap()
+                CStr::from_ptr(ffi::zbar_symbol_get_data(sym))
+                    .to_str()
+                    .unwrap()
             );
         } else {
             if XMLLVL < 3 {
@@ -358,7 +178,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
                 println!("<index num='{SEQ}'>");
             }
 
-            zbar_symbol_xml(sym, &mut XML_BUF, &mut XML_BUF_LEN);
+            ffi::zbar_symbol_xml(sym, &mut XML_BUF, &mut XML_BUF_LEN);
 
             print!("{}", CStr::from_ptr(XML_BUF).to_str().unwrap());
         }
@@ -378,7 +198,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
             }
         }
 
-        sym = zbar_symbol_next(sym);
+        sym = ffi::zbar_symbol_next(sym);
     }
 
     if XMLLVL > 2 {
@@ -386,12 +206,12 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void) -> libc::
         println!("</index>");
     }
 
-    zbar_image_destroy(zimage);
+    ffi::zbar_image_destroy(zimage);
 
     NUM_IMAGES += 1;
 
-    if zbar_processor_is_visible(processor) == 1 {
-        let rc = zbar_processor_user_wait(processor, -1);
+    if ffi::zbar_processor_is_visible(processor) == 1 {
+        let rc = ffi::zbar_processor_user_wait(processor, -1);
 
         if rc < 0 || rc == b'q'.into() || rc == b'Q'.into() {
             EXIT_CODE = 3
@@ -421,7 +241,7 @@ pub fn run() -> ProgramResult<()> {
         ONESHOT = args.oneshot.into();
         POLYGON = args.polygon.into();
 
-        zbar_set_verbosity(args.verbose.into());
+        ffi::zbar_set_verbosity(args.verbose.into());
 
         if args.xml && XMLLVL >= 0 {
             XMLLVL = 1;
@@ -435,16 +255,16 @@ pub fn run() -> ProgramResult<()> {
         }
 
         // Init processor
-        let processor = zbar_processor_create(0);
+        let processor = ffi::zbar_processor_create(0);
 
         assert!(!processor.is_null());
 
         if cfg!(feature = "dbus") {
-            zbar_processor_request_dbus(processor, (!args.nodbus).into());
+            ffi::zbar_processor_request_dbus(processor, (!args.nodbus).into());
         }
 
-        if zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
-            _zbar_error_spew(processor, 0);
+        if ffi::zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
+            ffi::_zbar_error_spew(processor, 0);
             return Err(ProgramError::ProcessorInitFailed);
         }
 
@@ -467,7 +287,7 @@ pub fn run() -> ProgramResult<()> {
         // #endif
 
         // Apply other arguments to processor instance
-        zbar_processor_set_visible(processor, args.display.into());
+        ffi::zbar_processor_set_visible(processor, args.display.into());
 
         for setting in args.config {
             if parse_config(processor, setting.as_ptr().cast()) != 0 {
@@ -551,7 +371,7 @@ pub fn run() -> ProgramResult<()> {
         }
 
         // Clean up
-        zbar_processor_destroy(processor);
+        ffi::zbar_processor_destroy(processor);
     }
 
     Ok(())
