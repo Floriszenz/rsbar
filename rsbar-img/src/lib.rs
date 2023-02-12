@@ -17,7 +17,7 @@ static mut EXIT_CODE: i8 = 0;
 static mut NUM_IMAGES: i8 = 0;
 static mut NUM_SYMBOLS: i8 = 0;
 static mut XMLLVL: i8 = 0;
-static mut BINARY: i8 = 0;
+static mut USE_BINARY_OUTPUT: bool = false; // TODO: Replace this with a `processor.get_config("binary")` method at a later point of refactoring
 static mut SEQ: i8 = 0;
 
 static mut XML_BUF: *mut libc::c_char = std::ptr::null_mut();
@@ -139,7 +139,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Ar
         found += 1;
         NUM_SYMBOLS += 1;
 
-        if BINARY == 0 {
+        if !USE_BINARY_OUTPUT {
             if args.oneshot {
                 if XMLLVL >= 0 {
                     println!();
@@ -218,12 +218,17 @@ pub fn run() -> ProgramResult<()> {
             return Err(ProgramError::ProcessorInitFailed);
         }
 
+        // Apply other arguments to processor instance
+        ffi::zbar_processor_set_visible(processor, args.display.into());
+
+        args.parse_config(processor)?;
+
         // If XML enabled, print head of XML output
         if XMLLVL > 0 {
             print!("{XML_HEAD}");
         }
 
-        if BINARY == 1 {
+        if USE_BINARY_OUTPUT {
             XMLLVL = -1;
         }
 
@@ -235,11 +240,6 @@ pub fn run() -> ProgramResult<()> {
         //         _setmode(_fileno(stdout), _O_TEXT);
         //     }
         // #endif
-
-        // Apply other arguments to processor instance
-        ffi::zbar_processor_set_visible(processor, args.display.into());
-
-        args.parse_config(processor)?;
 
         SEQ = 0;
 

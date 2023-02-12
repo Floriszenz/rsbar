@@ -68,10 +68,8 @@ impl Args {
     }
 
     pub fn parse_config(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
-        for setting in self.config.iter() {
-            utils::parse_config(processor, setting)?;
-        }
-
-        Ok(())
+        self.config
+            .iter()
+            .try_for_each(|setting| utils::parse_config(processor, setting))
     }
 }

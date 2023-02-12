@@ -1,9 +1,7 @@
-use std::borrow::BorrowMut;
-
 use crate::{
     errors::{ProgramError, ProgramResult},
     ffi::{self, ZbarConfig, ZbarSymbolType},
-    BINARY,
+    USE_BINARY_OUTPUT,
 };
 
 fn zbar_processor_parse_config(
@@ -15,12 +13,7 @@ fn zbar_processor_parse_config(
     let mut val: libc::c_int = 0;
 
     unsafe {
-        if ffi::zbar_parse_config(
-            config_string.as_ptr().cast(),
-            sym.borrow_mut(),
-            cfg.borrow_mut(),
-            val.borrow_mut(),
-        ) != 0
+        if ffi::zbar_parse_config(config_string.as_ptr().cast(), &mut sym, &mut cfg, &mut val) != 0
         {
             return Err(ProgramError::ConfigParseFailed(String::from(config_string)));
         }
@@ -38,7 +31,7 @@ pub fn parse_config(processor: *mut libc::c_void, config_string: &str) -> Progra
 
     if config_string == "binary" {
         unsafe {
-            BINARY = 1;
+            USE_BINARY_OUTPUT = true;
         }
     }
 
