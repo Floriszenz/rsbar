@@ -4,6 +4,8 @@ use std::{
     process::{ExitCode, Termination},
 };
 
+use image::ImageError;
+
 pub type ProgramResult<T> = std::result::Result<T, ProgramError>;
 
 #[derive(Debug)]
@@ -12,6 +14,8 @@ pub enum ProgramError {
     ProcessorInitFailed,
     ConfigParseFailed(String),
     ConfigSetFailed(String),
+    ImageOpenFailed(ImageError),
+    ImageProcessFailed(String),
     ImageScanFailed(String),
 }
 
@@ -29,6 +33,12 @@ impl fmt::Display for ProgramError {
                     "Failed to set the config \"{setting}\" for the processor"
                 )
             }
+            ProgramError::ImageOpenFailed(..) => {
+                write!(f, "Failed to open the image")
+            }
+            ProgramError::ImageProcessFailed(image_path) => {
+                write!(f, "Failed to process the image \"{image_path}\"")
+            }
             ProgramError::ImageScanFailed(image_path) => {
                 write!(f, "Failed to scan the image \"{image_path}\"")
             }
@@ -43,6 +53,8 @@ impl Error for ProgramError {
             ProgramError::ProcessorInitFailed => None,
             ProgramError::ConfigParseFailed(..) => None,
             ProgramError::ConfigSetFailed(..) => None,
+            ProgramError::ImageOpenFailed(ref e) => Some(e),
+            ProgramError::ImageProcessFailed(..) => None,
             ProgramError::ImageScanFailed(..) => None,
         }
     }
@@ -51,5 +63,11 @@ impl Error for ProgramError {
 impl Termination for ProgramError {
     fn report(self) -> ExitCode {
         ExitCode::FAILURE
+    }
+}
+
+impl From<ImageError> for ProgramError {
+    fn from(error: ImageError) -> Self {
+        ProgramError::ImageOpenFailed(error)
     }
 }

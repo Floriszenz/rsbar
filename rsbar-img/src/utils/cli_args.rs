@@ -71,9 +71,19 @@ impl Args {
         self.images.len()
     }
 
-    pub fn parse_config(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
+    pub fn parse_configs(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
         self.config
             .iter()
             .try_for_each(|setting| utils::parse_config(processor, setting))
+    }
+
+    pub fn scan_images(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
+        self.images
+            .iter()
+            .enumerate()
+            .try_for_each(|(idx, image_path)| {
+                utils::scan_image(image_path, idx, processor, self)
+                    .map_err(|_| ProgramError::ImageScanFailed(image_path.display().to_string()))
+            })
     }
 }
