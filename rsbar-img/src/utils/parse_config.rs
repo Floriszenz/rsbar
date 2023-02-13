@@ -1,10 +1,9 @@
 use crate::{
     errors::{ProgramError, ProgramResult},
     ffi::{self, ZbarConfig, ZbarSymbolType},
-    USE_BINARY_OUTPUT,
 };
 
-fn zbar_processor_parse_config(
+pub fn zbar_processor_parse_config(
     processor: *mut libc::c_void,
     config_string: &str,
 ) -> ProgramResult<()> {
@@ -20,18 +19,6 @@ fn zbar_processor_parse_config(
 
         if ffi::zbar_processor_set_config(processor, sym, cfg, val) != 0 {
             return Err(ProgramError::ConfigSetFailed(String::from(config_string)));
-        }
-    }
-
-    Ok(())
-}
-
-pub fn parse_config(processor: *mut libc::c_void, config_string: &str) -> ProgramResult<()> {
-    zbar_processor_parse_config(processor, config_string)?;
-
-    if config_string == "binary" {
-        unsafe {
-            USE_BINARY_OUTPUT = true;
         }
     }
 

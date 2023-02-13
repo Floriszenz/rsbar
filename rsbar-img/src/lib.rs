@@ -15,7 +15,6 @@ static mut NOT_FOUND: bool = false;
 static mut EXIT_CODE: i8 = 0;
 static mut NUM_SYMBOLS: i8 = 0;
 static mut XMLLVL: i8 = 0;
-static mut USE_BINARY_OUTPUT: bool = false; // TODO: Replace this with a `processor.get_config("binary")` method at a later point of refactoring
 
 const XML_HEAD: &str = "<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>\n";
 const XML_FOOT: &str = "</barcodes>\n";
@@ -80,19 +79,6 @@ pub fn run() -> ProgramResult<()> {
         if XMLLVL > 0 {
             print!("{XML_HEAD}");
         }
-
-        if USE_BINARY_OUTPUT {
-            XMLLVL = -1;
-        }
-
-        // TODO:
-        // #ifdef _WIN32
-        //     if (xmllvl == -1) {
-        //         _setmode(_fileno(stdout), _O_BINARY);
-        //     } else {
-        //         _setmode(_fileno(stdout), _O_TEXT);
-        //     }
-        // #endif
 
         args.scan_images(processor)?;
 

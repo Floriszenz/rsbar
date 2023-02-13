@@ -3,7 +3,7 @@ use std::{ffi::CStr, path::PathBuf};
 use crate::{
     errors::{ProgramError, ProgramResult},
     ffi::{self, ZbarSymbolType},
-    EXIT_CODE, NOT_FOUND, NUM_SYMBOLS, USE_BINARY_OUTPUT, XMLLVL,
+    EXIT_CODE, NOT_FOUND, NUM_SYMBOLS, XMLLVL,
 };
 
 use super::cli_args::Args;
@@ -109,16 +109,14 @@ pub fn scan_image(
             found_symbol = true;
             NUM_SYMBOLS += 1;
 
-            if !USE_BINARY_OUTPUT {
-                if args.oneshot {
-                    if XMLLVL >= 0 {
-                        println!();
-                    }
-
-                    break;
-                } else {
+            if args.oneshot {
+                if XMLLVL >= 0 {
                     println!();
                 }
+
+                break;
+            } else {
+                println!();
             }
 
             sym = ffi::zbar_symbol_next(sym);
