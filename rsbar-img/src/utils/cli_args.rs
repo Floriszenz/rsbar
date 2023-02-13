@@ -83,13 +83,14 @@ impl Args {
         &self,
         processor: *mut libc::c_void,
         xml_printer: &Option<XmlPrinter>,
-    ) -> ProgramResult<()> {
+    ) -> ProgramResult<u8> {
         self.images
             .iter()
             .enumerate()
-            .try_for_each(|(idx, image_path)| {
+            .map(|(idx, image_path)| {
                 utils::scan_image(image_path, idx, processor, self, xml_printer)
-                    .map_err(|_| ProgramError::ImageScanFailed(image_path.display().to_string()))
             })
+            .collect::<Result<Vec<u8>, _>>()
+            .map(|symbol_counts| symbol_counts.iter().sum())
     }
 }

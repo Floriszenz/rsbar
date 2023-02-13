@@ -3,7 +3,7 @@ use std::{ffi::CStr, path::PathBuf};
 use crate::{
     errors::{ProgramError, ProgramResult},
     ffi::{self, ZbarSymbolType},
-    EXIT_CODE, NOT_FOUND, NUM_SYMBOLS,
+    EXIT_CODE,
 };
 
 use super::{cli_args::Args, XmlPrinter};
@@ -18,8 +18,8 @@ pub fn scan_image(
     processor: *mut libc::c_void,
     args: &Args,
     xml_printer: &Option<XmlPrinter>,
-) -> ProgramResult<()> {
-    let mut found_symbol: bool = false;
+) -> ProgramResult<u8> {
+    let mut symbol_count: u8 = 0;
     let image = image::open(filename)?;
 
     unsafe {
@@ -106,8 +106,7 @@ pub fn scan_image(
                 xml_printer.print_index_foot();
             }
 
-            found_symbol = true;
-            NUM_SYMBOLS += 1;
+            symbol_count += 1;
 
             if args.oneshot {
                 break;
@@ -129,11 +128,7 @@ pub fn scan_image(
         if let Some(xml_printer) = &xml_printer {
             xml_printer.print_source_foot();
         }
-
-        if !found_symbol {
-            NOT_FOUND = true;
-        }
     }
 
-    Ok(())
+    Ok(symbol_count)
 }
