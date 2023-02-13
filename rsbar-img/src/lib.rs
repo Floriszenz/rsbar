@@ -12,39 +12,41 @@ use crate::{
     utils::cli_args::Args,
 };
 
-static mut NOT_FOUND: i8 = 0;
+static mut NOT_FOUND: bool = false;
 static mut EXIT_CODE: i8 = 0;
-static mut NUM_IMAGES: i8 = 0;
 static mut NUM_SYMBOLS: i8 = 0;
 static mut XMLLVL: i8 = 0;
 static mut USE_BINARY_OUTPUT: bool = false; // TODO: Replace this with a `processor.get_config("binary")` method at a later point of refactoring
-static mut SEQ: i8 = 0;
 
 const XML_HEAD: &str = "<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>\n";
 const XML_FOOT: &str = "</barcodes>\n";
 
 const WARNING_NOT_FOUND_HEAD: &str = "\n\
     WARNING: barcode data was not detected in some image(s)\n\
-    Things to check:\n\
-    \t- is the barcode type supported? Currently supported symbologies are:\n";
+    Things to check:\n  \
+        - is the barcode type supported? Currently supported symbologies are:\n";
 
-const WARNING_NOT_FOUND_TAIL: &str = "\t- is the barcode large enough in the image?\n\
-    \t- is the barcode mostly in focus?\n\
-    \t- is there sufficient contrast/illumination?\n\
-    \t- If the symbol is split in several barcodes, are they combined in one image?\n\
-    \t- Did you enable the barcode type?\n\
-    \t\tsome EAN/UPC codes are disabled by default. To enable all, use:\n\
-    \t\t$ zbarimg -S*.enable <files>\n\
-    \t\tPlease also notice that some variants take precedence over others.\n\
-    \t\tDue to that, if you want, for example, ISBN-10, you should do:\n\
-    \t\t$ zbarimg -Sisbn10.enable <files>\n\
-    \n";
+const WARNING_NOT_FOUND_TAIL: &str = "  - is the barcode large enough in the image?\n  \
+    - is the barcode mostly in focus?\n  \
+    - is there sufficient contrast/illumination?\n  \
+    - If the symbol is split in several barcodes, are they combined in one image?\n  \
+    - Did you enable the barcode type?\n    \
+        some EAN/UPC codes are disabled by default. To enable all, use:\n    \
+        $ zbarimg -S*.enable <files>\n    \
+        Please also notice that some variants take precedence over others.\n    \
+        Due to that, if you want, for example, ISBN-10, you should do:\n    \
+        $ zbarimg -Sisbn10.enable <files>\n\n";
 
 const fn zbar_fourcc(a: u8, b: u8, c: u8, d: u8) -> u64 {
     a as u64 | ((b as u64) << 8) | ((c as u64) << 16) | ((d as u64) << 24)
 }
 
-unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Args) -> libc::c_int {
+unsafe fn scan_image(
+    filename: &PathBuf,
+    idx: usize,
+    processor: *mut libc::c_void,
+    args: &Args,
+) -> libc::c_int {
     if EXIT_CODE == 3 {
         return -1;
     }
@@ -125,7 +127,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Ar
         } else {
             if XMLLVL < 3 {
                 XMLLVL += 1;
-                println!("<index num='{SEQ}'>");
+                println!("<index num='{idx}'>");
             }
 
             let symbol_xml = ffi::zbar_symbol_xml(sym, &mut std::ptr::null_mut(), &mut 0);
@@ -158,8 +160,6 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Ar
 
     ffi::zbar_image_destroy(zimage);
 
-    NUM_IMAGES += 1;
-
     if ffi::zbar_processor_is_visible(processor) == 1 {
         let rc = ffi::zbar_processor_user_wait(processor, -1);
 
@@ -174,7 +174,7 @@ unsafe fn scan_image(filename: &PathBuf, processor: *mut libc::c_void, args: &Ar
     }
 
     if found == 0 {
-        NOT_FOUND += 1;
+        NOT_FOUND = true;
     }
 
     0
@@ -238,16 +238,12 @@ pub fn run() -> ProgramResult<()> {
         //     }
         // #endif
 
-        SEQ = 0;
-
-        for image_path in args.images.iter() {
-            if scan_image(image_path, processor, &args) != 0 {
+        for (idx, image_path) in args.images.iter().enumerate() {
+            if scan_image(image_path, idx, processor, &args) != 0 {
                 return Err(ProgramError::ImageScanFailed(
                     image_path.display().to_string(),
                 ));
             }
-
-            SEQ += 1;
         }
 
         /* ignore quit during last image */
@@ -259,14 +255,17 @@ pub fn run() -> ProgramResult<()> {
             print!("{XML_FOOT}");
         }
 
-        if NUM_IMAGES > 0 && !args.quiet && XMLLVL <= 0 {
-            eprint!("scanned {NUM_SYMBOLS} barcode symbols from {NUM_IMAGES} images");
+        if !args.quiet && XMLLVL <= 0 {
+            eprint!(
+                "scanned {NUM_SYMBOLS} barcode symbols from {} images",
+                args.image_count()
+            );
             eprintln!(
                 " in {:.2} seconds",
                 start_time.elapsed().unwrap().as_secs_f32()
             );
 
-            if NOT_FOUND == 1 {
+            if NOT_FOUND {
                 eprint!("{WARNING_NOT_FOUND_HEAD}");
 
                 #[cfg(feature = "ean")]
@@ -305,7 +304,7 @@ pub fn run() -> ProgramResult<()> {
             }
         }
 
-        if NUM_IMAGES > 0 && NOT_FOUND == 1 && EXIT_CODE == 0 {
+        if NOT_FOUND && EXIT_CODE == 0 {
             EXIT_CODE = 4;
         }
 

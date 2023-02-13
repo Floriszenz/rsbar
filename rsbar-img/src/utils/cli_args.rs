@@ -67,6 +67,10 @@ impl Args {
         Ok(())
     }
 
+    pub fn image_count(&self) -> usize {
+        self.images.len()
+    }
+
     pub fn parse_config(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
         self.config
             .iter()
