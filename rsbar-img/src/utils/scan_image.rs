@@ -3,10 +3,10 @@ use std::{ffi::CStr, path::PathBuf};
 use crate::{
     errors::{ProgramError, ProgramResult},
     ffi::{self, ZbarSymbolType},
-    EXIT_CODE, NOT_FOUND, NUM_SYMBOLS, XMLLVL,
+    EXIT_CODE, NOT_FOUND, NUM_SYMBOLS,
 };
 
-use super::cli_args::Args;
+use super::{cli_args::Args, XmlPrinter};
 
 const fn zbar_fourcc(a: u8, b: u8, c: u8, d: u8) -> u64 {
     a as u64 | ((b as u64) << 8) | ((c as u64) << 16) | ((d as u64) << 24)
@@ -17,6 +17,7 @@ pub fn scan_image(
     idx: usize,
     processor: *mut libc::c_void,
     args: &Args,
+    xml_printer: &Option<XmlPrinter>,
 ) -> ProgramResult<()> {
     let mut found_symbol: bool = false;
     let image = image::open(filename)?;
@@ -38,9 +39,8 @@ pub fn scan_image(
 
         libc::memcpy(blob, bytes.as_ptr().cast(), bloblen);
 
-        if XMLLVL == 1 {
-            XMLLVL += 1;
-            println!("<source href='{}'>", filename.display());
+        if let Some(xml_printer) = &xml_printer {
+            xml_printer.print_source_head(filename);
         }
 
         let processing_result = ffi::zbar_process_image(processor, zimage);
@@ -59,8 +59,8 @@ pub fn scan_image(
 
             if typ == ZbarSymbolType::ZbarPartial {
                 continue;
-            } else if XMLLVL <= 0 {
-                if XMLLVL == 0 {
+            } else if !args.xml {
+                if !args.raw {
                     print!(
                         "{}:",
                         CStr::from_ptr(ffi::zbar_get_symbol_name(typ))
@@ -89,42 +89,31 @@ pub fn scan_image(
                     print!(":");
                 }
 
-                print!(
+                println!(
                     "{}",
                     CStr::from_ptr(ffi::zbar_symbol_get_data(sym))
                         .to_str()
                         .unwrap()
                 );
-            } else {
-                if XMLLVL < 3 {
-                    XMLLVL += 1;
-                    println!("<index num='{idx}'>");
-                }
-
+            } else if let Some(xml_printer) = &xml_printer {
+                xml_printer.print_index_head(idx as u8);
                 let symbol_xml = ffi::zbar_symbol_xml(sym, &mut std::ptr::null_mut(), &mut 0);
 
-                print!("{}", CStr::from_ptr(symbol_xml).to_str().unwrap());
+                if let Ok(symbol_xml) = CStr::from_ptr(symbol_xml).to_str() {
+                    xml_printer.print_symbol(symbol_xml);
+                }
+
+                xml_printer.print_index_foot();
             }
 
             found_symbol = true;
             NUM_SYMBOLS += 1;
 
             if args.oneshot {
-                if XMLLVL >= 0 {
-                    println!();
-                }
-
                 break;
-            } else {
-                println!();
             }
 
             sym = ffi::zbar_symbol_next(sym);
-        }
-
-        if XMLLVL > 2 {
-            XMLLVL -= 1;
-            println!("</index>");
         }
 
         ffi::zbar_image_destroy(zimage);
@@ -137,9 +126,8 @@ pub fn scan_image(
             }
         }
 
-        if XMLLVL > 1 {
-            XMLLVL -= 1;
-            println!("</source>");
+        if let Some(xml_printer) = &xml_printer {
+            xml_printer.print_source_foot();
         }
 
         if !found_symbol {

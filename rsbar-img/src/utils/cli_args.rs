@@ -4,7 +4,7 @@ use clap::Parser;
 
 use crate::{
     errors::{ProgramError, ProgramResult},
-    utils,
+    utils::{self, XmlPrinter},
 };
 
 #[derive(Debug, Parser)]
@@ -41,16 +41,18 @@ pub struct Args {
     #[arg(short, long)]
     pub quiet: bool,
 
+    /// Increase debug output level
+    /// (mutually exclusive with the --quiet option)
+    #[arg(short, long, action = clap::ArgAction::Count, overrides_with = "quiet")]
+    pub verbose: u8, // TODO: Maybe refactor to an enum
+
     /// Output decoded symbol data without converting charsets
+    /// (mutually exclusive with the --[no]xml options)
     #[arg(long)]
     pub raw: bool,
 
-    /// Increase debug output level
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    pub verbose: u8, // TODO: Maybe refactor to an enum
-
     /// Enable XML output format
-    #[arg(long, overrides_with = "_no_xml")]
+    #[arg(long, overrides_with_all = ["_no_xml", "raw"])]
     pub xml: bool, // TODO: Maybe use an optional path for output - would not require hacky output to stderr
 
     /// Disable XML output format (default)
@@ -77,12 +79,16 @@ impl Args {
             .try_for_each(|setting| utils::parse_config(processor, setting))
     }
 
-    pub fn scan_images(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
+    pub fn scan_images(
+        &self,
+        processor: *mut libc::c_void,
+        xml_printer: &Option<XmlPrinter>,
+    ) -> ProgramResult<()> {
         self.images
             .iter()
             .enumerate()
             .try_for_each(|(idx, image_path)| {
-                utils::scan_image(image_path, idx, processor, self)
+                utils::scan_image(image_path, idx, processor, self, xml_printer)
                     .map_err(|_| ProgramError::ImageScanFailed(image_path.display().to_string()))
             })
     }

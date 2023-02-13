@@ -8,16 +8,12 @@ use clap::Parser;
 
 use crate::{
     errors::{ProgramError, ProgramResult},
-    utils::cli_args::Args,
+    utils::{cli_args::Args, XmlPrinter},
 };
 
 static mut NOT_FOUND: bool = false;
 static mut EXIT_CODE: i8 = 0;
 static mut NUM_SYMBOLS: i8 = 0;
-static mut XMLLVL: i8 = 0;
-
-const XML_HEAD: &str = "<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>\n";
-const XML_FOOT: &str = "</barcodes>\n";
 
 const WARNING_NOT_FOUND_HEAD: &str = "\n\
     WARNING: barcode data was not detected in some image(s)\n\
@@ -45,16 +41,11 @@ pub fn run() -> ProgramResult<()> {
         // Parse program arguments
         ffi::zbar_set_verbosity(args.verbose.into());
 
-        if args.xml && XMLLVL >= 0 {
-            XMLLVL = 1;
-        } else if !args.xml && XMLLVL > 0 {
-            XMLLVL = 0;
-        }
-
-        if args.raw {
-            // RAW mode takes precedence
-            XMLLVL = -1;
-        }
+        let xml_printer = if args.xml {
+            Some(XmlPrinter::new())
+        } else {
+            None
+        };
 
         // Init processor
         let processor = ffi::zbar_processor_create(0);
@@ -76,27 +67,27 @@ pub fn run() -> ProgramResult<()> {
         args.parse_configs(processor)?;
 
         // If XML enabled, print head of XML output
-        if XMLLVL > 0 {
-            print!("{XML_HEAD}");
+        if let Some(xml_printer) = &xml_printer {
+            xml_printer.print_head();
         }
 
-        args.scan_images(processor)?;
+        args.scan_images(processor, &xml_printer)?;
 
         /* ignore quit during last image */
         if EXIT_CODE == 3 {
             EXIT_CODE = 0;
         }
 
-        if XMLLVL > 0 {
-            print!("{XML_FOOT}");
+        if let Some(xml_printer) = &xml_printer {
+            xml_printer.print_foot();
         }
 
-        if !args.quiet && XMLLVL <= 0 {
-            eprint!(
+        if !args.quiet && !args.xml {
+            print!(
                 "scanned {NUM_SYMBOLS} barcode symbols from {} images",
                 args.image_count()
             );
-            eprintln!(
+            println!(
                 " in {:.2} seconds",
                 start_time.elapsed().unwrap().as_secs_f32()
             );
