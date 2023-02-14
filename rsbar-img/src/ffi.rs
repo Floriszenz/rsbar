@@ -1,6 +1,8 @@
+use crate::utils::LogVerbosity;
+
 #[link(name = "zbar", kind = "static")]
 extern "C" {
-    pub fn zbar_set_verbosity(level: libc::c_int);
+    pub fn zbar_set_verbosity(level: LogVerbosity);
 
     pub fn zbar_processor_create(threaded: libc::c_int) -> *mut libc::c_void;
 

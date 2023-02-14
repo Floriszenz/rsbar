@@ -4,7 +4,7 @@ use clap::Parser;
 
 use crate::{
     errors::{ProgramError, ProgramResult},
-    utils::{self, XmlPrinter},
+    utils::{self, LogVerbosity, XmlPrinter},
 };
 
 #[derive(Debug, Parser)]
@@ -37,14 +37,9 @@ pub struct Args {
     #[arg(long)]
     pub polygon: bool,
 
-    /// Minimal output, only print decoded symbol data
-    #[arg(short, long)]
-    pub quiet: bool,
-
-    /// Increase debug output level
-    /// (mutually exclusive with the --quiet option)
-    #[arg(short, long, action = clap::ArgAction::Count, overrides_with = "quiet")]
-    pub verbose: u8, // TODO: Maybe refactor to an enum
+    /// Set debug output level
+    #[arg(short, long, value_enum, default_value_t = LogVerbosity::Normal)]
+    pub verbosity: LogVerbosity,
 
     /// Output decoded symbol data without converting charsets
     /// (mutually exclusive with the --[no]xml options)
@@ -53,7 +48,7 @@ pub struct Args {
 
     /// Enable XML output format
     #[arg(long, overrides_with_all = ["_no_xml", "raw"])]
-    pub xml: bool, // TODO: Maybe use an optional path for output - would not require hacky output to stderr
+    pub xml: bool,
 
     /// Disable XML output format (default)
     #[arg(long = "noxml")]

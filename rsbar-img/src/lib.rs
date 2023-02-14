@@ -35,7 +35,7 @@ pub fn run() -> ProgramResult<()> {
 
     unsafe {
         // Parse program arguments
-        ffi::zbar_set_verbosity(args.verbose.into());
+        ffi::zbar_set_verbosity(args.verbosity);
 
         let xml_printer = if args.xml {
             Some(XmlPrinter::new())
@@ -73,7 +73,7 @@ pub fn run() -> ProgramResult<()> {
             xml_printer.print_foot();
         }
 
-        if !args.quiet && !args.xml {
+        if !args.verbosity.is_quiet() && !args.xml {
             print!(
                 "scanned {detected_symbol_count} barcode symbols from {} images",
                 args.image_count()
