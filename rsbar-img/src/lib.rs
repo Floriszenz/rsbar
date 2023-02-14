@@ -11,8 +11,6 @@ use crate::{
     utils::{cli_args::Args, XmlPrinter},
 };
 
-static mut EXIT_CODE: i8 = 0;
-
 const WARNING_NOT_FOUND_HEAD: &str = "\n\
     WARNING: barcode data was not detected in some image(s)\n\
     Things to check:\n  \
@@ -71,11 +69,6 @@ pub fn run() -> ProgramResult<()> {
 
         let detected_symbol_count = args.scan_images(processor, &xml_printer)?;
 
-        /* ignore quit during last image */
-        if EXIT_CODE == 3 {
-            EXIT_CODE = 0;
-        }
-
         if let Some(xml_printer) = &xml_printer {
             xml_printer.print_foot();
         }
@@ -129,12 +122,12 @@ pub fn run() -> ProgramResult<()> {
             }
         }
 
-        if detected_symbol_count == 0 && EXIT_CODE == 0 {
-            EXIT_CODE = 4;
-        }
-
         // Clean up
         ffi::zbar_processor_destroy(processor);
+
+        if detected_symbol_count == 0 {
+            return Err(ProgramError::NoSymbolDetected);
+        }
     }
 
     Ok(())

@@ -3,7 +3,6 @@ use std::{ffi::CStr, path::PathBuf};
 use crate::{
     errors::{ProgramError, ProgramResult},
     ffi::{self, ZbarSymbolType},
-    EXIT_CODE,
 };
 
 use super::{cli_args::Args, XmlPrinter};
@@ -121,7 +120,7 @@ pub fn scan_image(
             let rc = ffi::zbar_processor_user_wait(processor, -1);
 
             if rc < 0 || rc == b'q'.into() || rc == b'Q'.into() {
-                EXIT_CODE = 3
+                // TODO: Handle user quit
             }
         }
 

@@ -17,6 +17,7 @@ pub enum ProgramError {
     ImageOpenFailed(ImageError),
     ImageProcessFailed(String),
     ImageScanFailed(String),
+    NoSymbolDetected,
 }
 
 impl fmt::Display for ProgramError {
@@ -42,6 +43,7 @@ impl fmt::Display for ProgramError {
             ProgramError::ImageScanFailed(image_path) => {
                 write!(f, "Failed to scan the image \"{image_path}\"")
             }
+            ProgramError::NoSymbolDetected => write!(f, "No symbol detected"),
         }
     }
 }
@@ -56,13 +58,17 @@ impl Error for ProgramError {
             ProgramError::ImageOpenFailed(ref e) => Some(e),
             ProgramError::ImageProcessFailed(..) => None,
             ProgramError::ImageScanFailed(..) => None,
+            ProgramError::NoSymbolDetected => None,
         }
     }
 }
 
 impl Termination for ProgramError {
     fn report(self) -> ExitCode {
-        ExitCode::FAILURE
+        match self {
+            ProgramError::NoSymbolDetected => ExitCode::from(4),
+            _ => ExitCode::FAILURE,
+        }
     }
 }
 
