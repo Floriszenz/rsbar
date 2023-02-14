@@ -43,19 +43,7 @@ pub fn run() -> ProgramResult<()> {
             None
         };
 
-        // Init processor
-        let processor = ffi::zbar_processor_create(0);
-
-        assert!(!processor.is_null());
-
-        if cfg!(feature = "dbus") {
-            ffi::zbar_processor_request_dbus(processor, (!args.nodbus).into());
-        }
-
-        if ffi::zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
-            ffi::_zbar_error_spew(processor, 0);
-            return Err(ProgramError::ProcessorInitFailed);
-        }
+        let processor = initialize_processor(!args.nodbus)?;
 
         // Apply other arguments to processor instance
         ffi::zbar_processor_set_visible(processor, args.display.into());
@@ -131,4 +119,23 @@ pub fn run() -> ProgramResult<()> {
     }
 
     Ok(())
+}
+
+fn initialize_processor(use_dbus: bool) -> ProgramResult<*mut libc::c_void> {
+    unsafe {
+        let processor = ffi::zbar_processor_create(0);
+
+        assert!(!processor.is_null());
+
+        if cfg!(feature = "dbus") {
+            ffi::zbar_processor_request_dbus(processor, use_dbus.into());
+        }
+
+        if ffi::zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
+            ffi::_zbar_error_spew(processor, 0);
+            return Err(ProgramError::ProcessorInitFailed);
+        }
+
+        Ok(processor)
+    }
 }
