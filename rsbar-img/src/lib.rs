@@ -17,7 +17,7 @@ pub fn run() -> ProgramResult<()> {
 
     set_global_verbosity(args.verbosity);
 
-    args.check_images()?;
+    check_images(&args)?;
 
     let processor = initialize_processor(&args)?;
 
@@ -25,7 +25,7 @@ pub fn run() -> ProgramResult<()> {
         XmlPrinter::print_head();
     }
 
-    let detected_symbol_count = args.scan_images(processor)?;
+    let detected_symbol_count = scan_images(&args, processor)?;
 
     if args.xml {
         XmlPrinter::print_foot();
@@ -54,6 +54,14 @@ fn set_global_verbosity(verbosity: LogVerbosity) {
     }
 }
 
+fn check_images(args: &Args) -> ProgramResult<()> {
+    if args.images.is_empty() {
+        return Err(ProgramError::NoImagePassed);
+    }
+
+    Ok(())
+}
+
 fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
     let Args { nodbus, .. } = args;
 
@@ -77,14 +85,29 @@ fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
     }
 }
 
+fn parse_configs(args: &Args, processor: *mut libc::c_void) -> ProgramResult<()> {
+    args.config
+        .iter()
+        .try_for_each(|setting| utils::parse_config(processor, setting))
+}
+
 fn apply_arguments_to_processor(processor: *mut libc::c_void, args: &Args) -> ProgramResult<()> {
     unsafe {
         ffi::zbar_processor_set_visible(processor, args.display.into());
     }
 
-    args.parse_configs(processor)?;
+    parse_configs(args, processor)?;
 
     Ok(())
+}
+
+fn scan_images(args: &Args, processor: *mut libc::c_void) -> ProgramResult<u8> {
+    args.images
+        .iter()
+        .enumerate()
+        .map(|(idx, image_path)| utils::scan_image(image_path, idx, processor, args))
+        .collect::<Result<Vec<u8>, _>>()
+        .map(|symbol_counts| symbol_counts.iter().sum())
 }
 
 fn drop_processor(processor: *mut libc::c_void) {

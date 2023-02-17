@@ -2,10 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::{
-    errors::{ProgramError, ProgramResult},
-    utils::{self, LogVerbosity},
-};
+use crate::utils::LogVerbosity;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -56,30 +53,7 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn check_images(&self) -> ProgramResult<()> {
-        if self.images.is_empty() {
-            return Err(ProgramError::NoImagePassed);
-        }
-
-        Ok(())
-    }
-
     pub fn image_count(&self) -> usize {
         self.images.len()
-    }
-
-    pub fn parse_configs(&self, processor: *mut libc::c_void) -> ProgramResult<()> {
-        self.config
-            .iter()
-            .try_for_each(|setting| utils::parse_config(processor, setting))
-    }
-
-    pub fn scan_images(&self, processor: *mut libc::c_void) -> ProgramResult<u8> {
-        self.images
-            .iter()
-            .enumerate()
-            .map(|(idx, image_path)| utils::scan_image(image_path, idx, processor, self))
-            .collect::<Result<Vec<u8>, _>>()
-            .map(|symbol_counts| symbol_counts.iter().sum())
     }
 }
