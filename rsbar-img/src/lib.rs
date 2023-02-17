@@ -11,22 +11,6 @@ use crate::{
     utils::{cli_args::Args, XmlPrinter},
 };
 
-const WARNING_NOT_FOUND_HEAD: &str = "\n\
-    WARNING: barcode data was not detected in some image(s)\n\
-    Things to check:\n  \
-        - is the barcode type supported? Currently supported symbologies are:\n";
-
-const WARNING_NOT_FOUND_TAIL: &str = "  - is the barcode large enough in the image?\n  \
-    - is the barcode mostly in focus?\n  \
-    - is there sufficient contrast/illumination?\n  \
-    - If the symbol is split in several barcodes, are they combined in one image?\n  \
-    - Did you enable the barcode type?\n    \
-        some EAN/UPC codes are disabled by default. To enable all, use:\n    \
-        $ zbarimg -S*.enable <files>\n    \
-        Please also notice that some variants take precedence over others.\n    \
-        Due to that, if you want, for example, ISBN-10, you should do:\n    \
-        $ zbarimg -Sisbn10.enable <files>\n\n";
-
 pub fn run() -> ProgramResult<()> {
     let start_time = SystemTime::now();
     let args = Args::parse();
@@ -71,43 +55,7 @@ pub fn run() -> ProgramResult<()> {
                 start_time.elapsed().unwrap().as_secs_f32()
             );
 
-            if detected_symbol_count == 0 {
-                eprint!("{WARNING_NOT_FOUND_HEAD}");
-
-                #[cfg(feature = "ean")]
-                eprintln!(
-                    "\t. EAN/UPC (EAN-13, EAN-8, EAN-2, EAN-5, UPC-A, UPC-E, ISBN-10, ISBN-13)"
-                );
-
-                #[cfg(feature = "databar")]
-                eprintln!("\t. DataBar, DataBar Expanded");
-
-                #[cfg(feature = "code128")]
-                eprintln!("\t. Code 128");
-
-                #[cfg(feature = "code93")]
-                eprintln!("\t. Code 93");
-
-                #[cfg(feature = "code39")]
-                eprintln!("\t. Code 39");
-
-                #[cfg(feature = "codabar")]
-                eprintln!("\t. Codabar");
-
-                #[cfg(feature = "i25")]
-                eprintln!("\t. Interleaved 2 of 5");
-
-                #[cfg(feature = "qrcode")]
-                eprintln!("\t. QR code");
-
-                #[cfg(feature = "sqcode")]
-                eprintln!("\t. SQ code");
-
-                #[cfg(feature = "pdf417")]
-                eprintln!("\t. PDF 417");
-
-                eprint!("{WARNING_NOT_FOUND_TAIL}");
-            }
+            print_no_symbol_detected_warning(detected_symbol_count);
         }
 
         // Clean up
@@ -137,5 +85,59 @@ fn initialize_processor(use_dbus: bool) -> ProgramResult<*mut libc::c_void> {
         }
 
         Ok(processor)
+    }
+}
+
+fn print_no_symbol_detected_warning(detected_symbol_count: u8) {
+    if detected_symbol_count == 0 {
+        eprintln!(
+            "\n\
+            WARNING: barcode data was not detected in some image(s)\n\
+            Things to check:\n  \
+                - is the barcode type supported? Currently supported symbologies are:"
+        );
+
+        #[cfg(feature = "ean")]
+        eprintln!("\t- EAN/UPC (EAN-13, EAN-8, EAN-2, EAN-5, UPC-A, UPC-E, ISBN-10, ISBN-13)");
+
+        #[cfg(feature = "databar")]
+        eprintln!("\t- DataBar, DataBar Expanded");
+
+        #[cfg(feature = "code128")]
+        eprintln!("\t- Code 128");
+
+        #[cfg(feature = "code93")]
+        eprintln!("\t- Code 93");
+
+        #[cfg(feature = "code39")]
+        eprintln!("\t- Code 39");
+
+        #[cfg(feature = "codabar")]
+        eprintln!("\t- Codabar");
+
+        #[cfg(feature = "i25")]
+        eprintln!("\t- Interleaved 2 of 5");
+
+        #[cfg(feature = "qrcode")]
+        eprintln!("\t- QR code");
+
+        #[cfg(feature = "sqcode")]
+        eprintln!("\t- SQ code");
+
+        #[cfg(feature = "pdf417")]
+        eprintln!("\t- PDF 417");
+
+        eprintln!(
+            "  - is the barcode large enough in the image?\n  \
+            - is the barcode mostly in focus?\n  \
+            - is there sufficient contrast/illumination?\n  \
+            - If the symbol is split in several barcodes, are they combined in one image?\n  \
+            - Did you enable the barcode type?\n    \
+                some EAN/UPC codes are disabled by default. To enable all, use:\n    \
+                $ zbarimg -S*.enable <files>\n    \
+                Please also notice that some variants take precedence over others.\n    \
+                Due to that, if you want, for example, ISBN-10, you should do:\n    \
+                $ zbarimg -Sisbn10.enable <files>\n"
+        );
     }
 }
