@@ -8,65 +8,58 @@ use clap::Parser;
 
 use crate::{
     errors::{ProgramError, ProgramResult},
-    utils::{cli_args::Args, XmlPrinter},
+    utils::{cli_args::Args, LogVerbosity, XmlPrinter},
 };
 
 pub fn run() -> ProgramResult<()> {
     let start_time = SystemTime::now();
     let args = Args::parse();
 
+    set_global_verbosity(args.verbosity);
+
     args.check_images()?;
 
-    unsafe {
-        // Parse program arguments
-        ffi::zbar_set_verbosity(args.verbosity);
+    let xml_printer = if args.xml {
+        Some(XmlPrinter::new())
+    } else {
+        None
+    };
 
-        let xml_printer = if args.xml {
-            Some(XmlPrinter::new())
-        } else {
-            None
-        };
+    let processor = initialize_processor(!args.nodbus)?;
 
-        let processor = initialize_processor(!args.nodbus)?;
+    apply_arguments_to_processor(processor, &args)?;
 
-        // Apply other arguments to processor instance
-        ffi::zbar_processor_set_visible(processor, args.display.into());
+    if let Some(xml_printer) = &xml_printer {
+        xml_printer.print_head();
+    }
 
-        args.parse_configs(processor)?;
+    let detected_symbol_count = args.scan_images(processor, &xml_printer)?;
 
-        // If XML enabled, print head of XML output
-        if let Some(xml_printer) = &xml_printer {
-            xml_printer.print_head();
-        }
+    if let Some(xml_printer) = &xml_printer {
+        xml_printer.print_foot();
+    }
 
-        let detected_symbol_count = args.scan_images(processor, &xml_printer)?;
+    print_scan_result(
+        args,
+        detected_symbol_count,
+        start_time
+            .elapsed()
+            .map_or(f32::NAN, |time| time.as_secs_f32()),
+    );
 
-        if let Some(xml_printer) = &xml_printer {
-            xml_printer.print_foot();
-        }
+    drop_processor(processor);
 
-        if !args.verbosity.is_quiet() && !args.xml {
-            print!(
-                "scanned {detected_symbol_count} barcode symbols from {} images",
-                args.image_count()
-            );
-            println!(
-                " in {:.2} seconds",
-                start_time.elapsed().unwrap().as_secs_f32()
-            );
-
-            print_no_symbol_detected_warning(detected_symbol_count);
-        }
-
-        // Clean up
-        ffi::zbar_processor_destroy(processor);
-
-        if detected_symbol_count == 0 {
-            return Err(ProgramError::NoSymbolDetected);
-        }
+    if detected_symbol_count == 0 {
+        return Err(ProgramError::NoSymbolDetected);
     }
 
     Ok(())
+}
+
+fn set_global_verbosity(verbosity: LogVerbosity) {
+    unsafe {
+        ffi::zbar_set_verbosity(verbosity);
+    }
 }
 
 fn initialize_processor(use_dbus: bool) -> ProgramResult<*mut libc::c_void> {
@@ -85,6 +78,22 @@ fn initialize_processor(use_dbus: bool) -> ProgramResult<*mut libc::c_void> {
         }
 
         Ok(processor)
+    }
+}
+
+fn apply_arguments_to_processor(processor: *mut libc::c_void, args: &Args) -> ProgramResult<()> {
+    unsafe {
+        ffi::zbar_processor_set_visible(processor, args.display.into());
+    }
+
+    args.parse_configs(processor)?;
+
+    Ok(())
+}
+
+fn drop_processor(processor: *mut libc::c_void) {
+    unsafe {
+        ffi::zbar_processor_destroy(processor);
     }
 }
 
@@ -139,5 +148,16 @@ fn print_no_symbol_detected_warning(detected_symbol_count: u8) {
                 Due to that, if you want, for example, ISBN-10, you should do:\n    \
                 $ zbarimg -Sisbn10.enable <files>\n"
         );
+    }
+}
+
+fn print_scan_result(args: Args, detected_symbol_count: u8, elapsed_time: f32) {
+    if !args.verbosity.is_quiet() && !args.xml {
+        println!(
+            "scanned {detected_symbol_count} barcode symbols from {} images in {elapsed_time:.2} seconds",
+            args.image_count()
+        );
+
+        print_no_symbol_detected_warning(detected_symbol_count);
     }
 }
