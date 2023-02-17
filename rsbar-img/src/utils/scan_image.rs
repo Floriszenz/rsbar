@@ -16,7 +16,6 @@ pub fn scan_image(
     idx: usize,
     processor: *mut libc::c_void,
     args: &Args,
-    xml_printer: &Option<XmlPrinter>,
 ) -> ProgramResult<u8> {
     let mut symbol_count: u8 = 0;
     let image = image::open(filename)?;
@@ -38,8 +37,8 @@ pub fn scan_image(
 
         libc::memcpy(blob, bytes.as_ptr().cast(), bloblen);
 
-        if let Some(xml_printer) = &xml_printer {
-            xml_printer.print_source_head(filename);
+        if args.xml {
+            XmlPrinter::print_source_head(filename);
         }
 
         let processing_result = ffi::zbar_process_image(processor, zimage);
@@ -94,15 +93,15 @@ pub fn scan_image(
                         .to_str()
                         .unwrap()
                 );
-            } else if let Some(xml_printer) = &xml_printer {
-                xml_printer.print_index_head(idx as u8);
+            } else if args.xml {
+                XmlPrinter::print_index_head(idx as u8);
                 let symbol_xml = ffi::zbar_symbol_xml(sym, &mut std::ptr::null_mut(), &mut 0);
 
                 if let Ok(symbol_xml) = CStr::from_ptr(symbol_xml).to_str() {
-                    xml_printer.print_symbol(symbol_xml);
+                    XmlPrinter::print_symbol(symbol_xml);
                 }
 
-                xml_printer.print_index_foot();
+                XmlPrinter::print_index_foot();
             }
 
             symbol_count += 1;
@@ -124,8 +123,8 @@ pub fn scan_image(
             }
         }
 
-        if let Some(xml_printer) = &xml_printer {
-            xml_printer.print_source_foot();
+        if args.xml {
+            XmlPrinter::print_source_foot();
         }
     }
 

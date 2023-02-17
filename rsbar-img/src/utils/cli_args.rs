@@ -4,7 +4,7 @@ use clap::Parser;
 
 use crate::{
     errors::{ProgramError, ProgramResult},
-    utils::{self, LogVerbosity, XmlPrinter},
+    utils::{self, LogVerbosity},
 };
 
 #[derive(Debug, Parser)]
@@ -74,17 +74,11 @@ impl Args {
             .try_for_each(|setting| utils::parse_config(processor, setting))
     }
 
-    pub fn scan_images(
-        &self,
-        processor: *mut libc::c_void,
-        xml_printer: &Option<XmlPrinter>,
-    ) -> ProgramResult<u8> {
+    pub fn scan_images(&self, processor: *mut libc::c_void) -> ProgramResult<u8> {
         self.images
             .iter()
             .enumerate()
-            .map(|(idx, image_path)| {
-                utils::scan_image(image_path, idx, processor, self, xml_printer)
-            })
+            .map(|(idx, image_path)| utils::scan_image(image_path, idx, processor, self))
             .collect::<Result<Vec<u8>, _>>()
             .map(|symbol_counts| symbol_counts.iter().sum())
     }

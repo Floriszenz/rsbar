@@ -19,24 +19,16 @@ pub fn run() -> ProgramResult<()> {
 
     args.check_images()?;
 
-    let xml_printer = if args.xml {
-        Some(XmlPrinter::new())
-    } else {
-        None
-    };
+    let processor = initialize_processor(&args)?;
 
-    let processor = initialize_processor(!args.nodbus)?;
-
-    apply_arguments_to_processor(processor, &args)?;
-
-    if let Some(xml_printer) = &xml_printer {
-        xml_printer.print_head();
+    if args.xml {
+        XmlPrinter::print_head();
     }
 
-    let detected_symbol_count = args.scan_images(processor, &xml_printer)?;
+    let detected_symbol_count = args.scan_images(processor)?;
 
-    if let Some(xml_printer) = &xml_printer {
-        xml_printer.print_foot();
+    if args.xml {
+        XmlPrinter::print_foot();
     }
 
     print_scan_result(
@@ -62,20 +54,24 @@ fn set_global_verbosity(verbosity: LogVerbosity) {
     }
 }
 
-fn initialize_processor(use_dbus: bool) -> ProgramResult<*mut libc::c_void> {
+fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
+    let Args { nodbus, .. } = args;
+
     unsafe {
         let processor = ffi::zbar_processor_create(0);
 
         assert!(!processor.is_null());
 
         if cfg!(feature = "dbus") {
-            ffi::zbar_processor_request_dbus(processor, use_dbus.into());
+            ffi::zbar_processor_request_dbus(processor, (!nodbus).into());
         }
 
         if ffi::zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
             ffi::_zbar_error_spew(processor, 0);
             return Err(ProgramError::ProcessorInitFailed);
         }
+
+        apply_arguments_to_processor(processor, args)?;
 
         Ok(processor)
     }
