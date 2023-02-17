@@ -28,26 +28,17 @@ pub fn scan_image(
 
     process_image(processor, zimage, filename)?;
 
-    unsafe {
-        // output result data
-        let symbol_count = output_result(zimage, args, idx);
+    let symbol_count = output_result(zimage, args, idx);
 
-        ffi::zbar_image_destroy(zimage);
+    drop_zbar_image(zimage);
 
-        if ffi::zbar_processor_is_visible(processor) == 1 {
-            let rc = ffi::zbar_processor_user_wait(processor, -1);
+    handle_user_quit_if_display(processor);
 
-            if rc < 0 || rc == b'q'.into() || rc == b'Q'.into() {
-                // TODO: Handle user quit
-            }
-        }
-
-        if args.xml {
-            XmlPrinter::print_source_foot();
-        }
-
-        Ok(symbol_count)
+    if args.xml {
+        XmlPrinter::print_source_foot();
     }
+
+    Ok(symbol_count)
 }
 
 fn zbar_image_new(filename: &PathBuf) -> ProgramResult<*mut libc::c_void> {
@@ -99,57 +90,18 @@ fn output_result(zimage: *mut libc::c_void, args: &Args, idx: usize) -> u8 {
     unsafe {
         let mut symbol = ffi::zbar_image_first_symbol(zimage);
 
+        if args.xml && !symbol.is_null() {
+            XmlPrinter::print_index_head(idx as u8);
+        }
+
         while !symbol.is_null() {
             let symbol_type = ffi::zbar_symbol_get_type(symbol);
 
             if symbol_type == ZbarSymbolType::ZbarPartial {
                 continue;
-            } else if !args.xml {
-                if !args.raw {
-                    print!(
-                        "{}:",
-                        CStr::from_ptr(ffi::zbar_get_symbol_name(symbol_type))
-                            .to_str()
-                            .unwrap()
-                    );
-                }
-
-                if args.polygon {
-                    if ffi::zbar_symbol_get_loc_size(symbol) > 0 {
-                        print!(
-                            "{},{}",
-                            ffi::zbar_symbol_get_loc_x(symbol, 0),
-                            ffi::zbar_symbol_get_loc_y(symbol, 0)
-                        );
-                    }
-
-                    for p in 1..ffi::zbar_symbol_get_loc_size(symbol) {
-                        print!(
-                            " {},{}",
-                            ffi::zbar_symbol_get_loc_x(symbol, p),
-                            ffi::zbar_symbol_get_loc_y(symbol, p)
-                        );
-                    }
-
-                    print!(":");
-                }
-
-                println!(
-                    "{}",
-                    CStr::from_ptr(ffi::zbar_symbol_get_data(symbol))
-                        .to_str()
-                        .unwrap()
-                );
-            } else if args.xml {
-                XmlPrinter::print_index_head(idx as u8);
-                let symbol_xml = ffi::zbar_symbol_xml(symbol, &mut std::ptr::null_mut(), &mut 0);
-
-                if let Ok(symbol_xml) = CStr::from_ptr(symbol_xml).to_str() {
-                    XmlPrinter::print_symbol(symbol_xml);
-                }
-
-                XmlPrinter::print_index_foot();
             }
+
+            print_symbol(args, symbol, symbol_type);
 
             symbol_count += 1;
 
@@ -159,7 +111,91 @@ fn output_result(zimage: *mut libc::c_void, args: &Args, idx: usize) -> u8 {
 
             symbol = ffi::zbar_symbol_next(symbol);
         }
+
+        if args.xml && symbol_count > 0 {
+            XmlPrinter::print_index_foot();
+        }
     }
 
     symbol_count
+}
+
+fn print_symbol_type(args: &Args, symbol_type: ZbarSymbolType) {
+    unsafe {
+        if !args.raw {
+            let symbol_name = ffi::zbar_get_symbol_name(symbol_type);
+
+            if let Ok(symbol_name) = CStr::from_ptr(symbol_name).to_str() {
+                print!("{symbol_name}:");
+            }
+        }
+    }
+}
+
+fn print_polygon(args: &Args, symbol: *const libc::c_void) {
+    unsafe {
+        if args.polygon {
+            let point_count = ffi::zbar_symbol_get_loc_size(symbol);
+            let polygon_string = (0..point_count)
+                .map(|idx| {
+                    format!(
+                        "{},{}",
+                        ffi::zbar_symbol_get_loc_x(symbol, idx),
+                        ffi::zbar_symbol_get_loc_y(symbol, idx)
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join(" ");
+
+            print!("{polygon_string}:");
+        }
+    }
+}
+
+fn print_symbol_data(symbol: *const libc::c_void) {
+    unsafe {
+        let symbol_data = ffi::zbar_symbol_get_data(symbol);
+
+        if let Ok(symbol_data) = CStr::from_ptr(symbol_data).to_str() {
+            println!("{symbol_data}");
+        }
+    }
+}
+
+fn print_symbol_as_xml(symbol: *const libc::c_void) {
+    unsafe {
+        let symbol_xml = ffi::zbar_symbol_xml(symbol, &mut std::ptr::null_mut(), &mut 0);
+
+        if let Ok(symbol_xml) = CStr::from_ptr(symbol_xml).to_str() {
+            XmlPrinter::print_symbol(symbol_xml);
+        }
+    }
+}
+
+fn print_symbol(args: &Args, symbol: *const libc::c_void, symbol_type: ZbarSymbolType) {
+    if args.xml {
+        print_symbol_as_xml(symbol);
+    } else {
+        print_symbol_type(args, symbol_type);
+        print_polygon(args, symbol);
+        print_symbol_data(symbol);
+    }
+}
+
+fn drop_zbar_image(zimage: *mut libc::c_void) {
+    unsafe {
+        ffi::zbar_image_destroy(zimage);
+    }
+}
+
+fn handle_user_quit_if_display(processor: *mut libc::c_void) {
+    unsafe {
+        if ffi::zbar_processor_is_visible(processor) == 1 {
+            let rc = ffi::zbar_processor_user_wait(processor, -1);
+
+            if rc < 0 || rc == b'q'.into() || rc == b'Q'.into() {
+                // TODO: Handle user quit
+            }
+        }
+    }
 }
