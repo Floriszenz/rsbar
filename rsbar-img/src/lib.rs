@@ -21,15 +21,7 @@ pub fn run() -> ProgramResult<()> {
 
     let processor = initialize_processor(&args)?;
 
-    if args.xml {
-        XmlPrinter::print_head();
-    }
-
     let detected_symbol_count = scan_images(&args, processor)?;
-
-    if args.xml {
-        XmlPrinter::print_foot();
-    }
 
     print_scan_result(
         args,
@@ -102,12 +94,23 @@ fn apply_arguments_to_processor(processor: *mut libc::c_void, args: &Args) -> Pr
 }
 
 fn scan_images(args: &Args, processor: *mut libc::c_void) -> ProgramResult<u8> {
-    args.images
+    if args.xml {
+        XmlPrinter::print_head();
+    }
+
+    let detected_symbol_count = args
+        .images
         .iter()
         .enumerate()
         .map(|(idx, image_path)| utils::scan_image(image_path, idx, processor, args))
         .collect::<Result<Vec<u8>, _>>()
-        .map(|symbol_counts| symbol_counts.iter().sum())
+        .map(|symbol_counts| symbol_counts.iter().sum());
+
+    if args.xml {
+        XmlPrinter::print_foot();
+    }
+
+    detected_symbol_count
 }
 
 fn drop_processor(processor: *mut libc::c_void) {
