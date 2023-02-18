@@ -99,24 +99,39 @@ Check the manual to find specific options for each program.
 
 In order to test if dbus is working, you could use:
 
-    $ dbus-monitor --system interface=org.linuxtv.Zbar1.Code
+```shell
+$ dbus-monitor --system interface=org.linuxtv.Zbar1.Code
+```
 
 or build the test programs with:
 
-    $ make test_progs
+```shell
+$ make test_progs
+```
 
 And run:
 
-    $ ./test/test_dbus
+```shell
+$ ./test/test_dbus
+```
 
 With that, running this command on a separate shell:
 
-    $ ./zbarimg/zbarimg examples/code-128.png
-    CODE-128:https://github.com/mchehab/zbar
-    scanned 1 barcode symbols from 1 images in 0.01 seconds
+```shell
+$ cargo run --features dbus --bin rsbar-img examples/code-128.png
+CODE-128:https://github.com/mchehab/zbar
+scanned 1 barcode symbols from 1 images in 0.01 seconds
+```
 
 Will produce this output at test_dbus shell window:
 
-    Waiting for Zbar events
-    Type = CODE-128
-    Value = https://github.com/mchehab/zbar
+```shell
+Waiting for Zbar events
+Type = CODE-128
+Value = https://github.com/mchehab/zbar
+```
+
+Note for WSL users: You may need to start dbus manually for this to work. All you have to do is running `service dbus start`.
+
+-   If it's complaining about missing permissions, run it with `sudo`.
+-   If you run `rsbar-img` and it throws a `Name Error(Connection ":1.1" is not allowed to own the service "org.linuxtv.zbar" due to security policies in the configuration file)` warning, make sure you have added the file `dbus/org.linuxtv.Zbar.conf` to `/etc/dbus-1/system.d/`). After copying the file to this directory it should work.
