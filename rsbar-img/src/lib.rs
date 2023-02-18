@@ -55,7 +55,9 @@ fn check_images(args: &Args) -> ProgramResult<()> {
 }
 
 fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
-    let Args { nodbus, .. } = args;
+    let Args {
+        display, nodbus, ..
+    } = args;
 
     unsafe {
         let processor = ffi::zbar_processor_create(0);
@@ -66,7 +68,7 @@ fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
             ffi::zbar_processor_request_dbus(processor, (!nodbus).into());
         }
 
-        if ffi::zbar_processor_init(processor, std::ptr::null(), 0) != 0 {
+        if ffi::zbar_processor_init(processor, std::ptr::null(), (*display).into()) != 0 {
             ffi::_zbar_error_spew(processor, 0);
             return Err(ProgramError::ProcessorInitFailed);
         }

@@ -32,7 +32,7 @@ pub fn scan_image(
 
     drop_zbar_image(zimage);
 
-    handle_user_quit_if_display(processor);
+    wait_for_user_quit_window(processor);
 
     if args.xml {
         XmlPrinter::print_source_foot();
@@ -188,13 +188,13 @@ fn drop_zbar_image(zimage: *mut libc::c_void) {
     }
 }
 
-fn handle_user_quit_if_display(processor: *mut libc::c_void) {
+fn wait_for_user_quit_window(processor: *mut libc::c_void) {
     unsafe {
         if ffi::zbar_processor_is_visible(processor) == 1 {
             let rc = ffi::zbar_processor_user_wait(processor, -1);
 
             if rc < 0 || rc == b'q'.into() || rc == b'Q'.into() {
-                // TODO: Handle user quit
+                // FIXME: Enable aborting further scanning of more images when hitting the "q" key
             }
         }
     }
