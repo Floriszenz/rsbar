@@ -4,18 +4,18 @@ mod utils;
 
 use std::time::SystemTime;
 
-use clap::Parser;
+use log::LevelFilter;
 
+pub use crate::utils::cli_args::Args;
 use crate::{
     errors::{ProgramError, ProgramResult},
-    utils::{cli_args::Args, LogVerbosity, XmlPrinter},
+    utils::XmlPrinter,
 };
 
-pub fn run() -> ProgramResult<()> {
+pub fn run(args: Args) -> ProgramResult<()> {
     let start_time = SystemTime::now();
-    let args = Args::parse();
 
-    set_global_verbosity(args.verbosity);
+    set_global_verbosity(args.verbosity.log_level_filter());
 
     check_images(&args)?;
 
@@ -40,9 +40,20 @@ pub fn run() -> ProgramResult<()> {
     Ok(())
 }
 
-fn set_global_verbosity(verbosity: LogVerbosity) {
+fn set_global_verbosity(verbosity: LevelFilter) {
+    let level = match verbosity {
+        LevelFilter::Off => 0,
+        LevelFilter::Error => 0,
+        LevelFilter::Warn => 0,
+        LevelFilter::Info => 0,
+        LevelFilter::Debug => 64,
+        LevelFilter::Trace => 128,
+    };
+
+    env_logger::Builder::new().filter_level(verbosity).init();
+
     unsafe {
-        ffi::zbar_set_verbosity(verbosity);
+        ffi::zbar_set_verbosity(level);
     }
 }
 
@@ -122,45 +133,46 @@ fn drop_processor(processor: *mut libc::c_void) {
 }
 
 fn print_no_symbol_detected_warning(detected_symbol_count: u8) {
-    if detected_symbol_count == 0 {
-        eprintln!(
-            "\n\
-            WARNING: barcode data was not detected in some image(s)\n\
+    if log::log_enabled!(log::Level::Warn) && detected_symbol_count == 0 {
+        let mut warning_str = String::from(
+            "WARNING: barcode data was not detected in some image(s)\n\
             Things to check:\n  \
-                - is the barcode type supported? Currently supported symbologies are:"
+            - is the barcode type supported? Currently supported symbologies are:\n",
         );
 
         #[cfg(feature = "ean")]
-        eprintln!("\t- EAN/UPC (EAN-13, EAN-8, EAN-2, EAN-5, UPC-A, UPC-E, ISBN-10, ISBN-13)");
+        warning_str.push_str(
+            "\t- EAN/UPC (EAN-13, EAN-8, EAN-2, EAN-5, UPC-A, UPC-E, ISBN-10, ISBN-13)\n",
+        );
 
         #[cfg(feature = "databar")]
-        eprintln!("\t- DataBar, DataBar Expanded");
+        warning_str.push_str("\t- DataBar, DataBar Expanded\n");
 
         #[cfg(feature = "code128")]
-        eprintln!("\t- Code 128");
+        warning_str.push_str("\t- Code 128\n");
 
         #[cfg(feature = "code93")]
-        eprintln!("\t- Code 93");
+        warning_str.push_str("\t- Code 93\n");
 
         #[cfg(feature = "code39")]
-        eprintln!("\t- Code 39");
+        warning_str.push_str("\t- Code 39\n");
 
         #[cfg(feature = "codabar")]
-        eprintln!("\t- Codabar");
+        warning_str.push_str("\t- Codabar\n");
 
         #[cfg(feature = "i25")]
-        eprintln!("\t- Interleaved 2 of 5");
+        warning_str.push_str("\t- Interleaved 2 of 5\n");
 
         #[cfg(feature = "qrcode")]
-        eprintln!("\t- QR code");
+        warning_str.push_str("\t- QR code\n");
 
         #[cfg(feature = "sqcode")]
-        eprintln!("\t- SQ code");
+        warning_str.push_str("\t- SQ code\n");
 
         #[cfg(feature = "pdf417")]
-        eprintln!("\t- PDF 417");
+        warning_str.push_str("\t- PDF 417\n");
 
-        eprintln!(
+        warning_str.push_str(
             "  - is the barcode large enough in the image?\n  \
             - is the barcode mostly in focus?\n  \
             - is there sufficient contrast/illumination?\n  \
@@ -170,18 +182,15 @@ fn print_no_symbol_detected_warning(detected_symbol_count: u8) {
                 $ zbarimg -S*.enable <files>\n    \
                 Please also notice that some variants take precedence over others.\n    \
                 Due to that, if you want, for example, ISBN-10, you should do:\n    \
-                $ zbarimg -Sisbn10.enable <files>\n"
+                $ zbarimg -Sisbn10.enable <files>\n",
         );
+
+        log::warn!("{warning_str}");
     }
 }
 
 fn print_scan_result(args: Args, detected_symbol_count: u8, elapsed_time: f32) {
-    if !args.verbosity.is_quiet() && !args.xml {
-        println!(
-            "scanned {detected_symbol_count} barcode symbols from {} images in {elapsed_time:.2} seconds",
-            args.image_count()
-        );
+    log::info!("scanned {detected_symbol_count} barcode symbols from {} images in {elapsed_time:.2} seconds", args.image_count());
 
-        print_no_symbol_detected_warning(detected_symbol_count);
-    }
+    print_no_symbol_detected_warning(detected_symbol_count);
 }

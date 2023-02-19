@@ -10,8 +10,8 @@ use crate::{
 
 use super::{cli_args::Args, XmlPrinter};
 
-const fn zbar_fourcc(code: [u8; 4]) -> u64 {
-    u32::from_le_bytes(code) as u64
+const fn zbar_fourcc(code: &[u8; 4]) -> u64 {
+    u32::from_le_bytes(*code) as u64
 }
 
 pub fn scan_image(
@@ -48,7 +48,7 @@ fn zbar_image_new(filename: &PathBuf) -> ProgramResult<*mut libc::c_void> {
         let zimage = ffi::zbar_image_create();
         assert!(!zimage.is_null());
 
-        ffi::zbar_image_set_format(zimage, zbar_fourcc([b'Y', b'8', b'0', b'0']));
+        ffi::zbar_image_set_format(zimage, zbar_fourcc(b"Y800"));
 
         let width = image.width();
         let height = image.height();

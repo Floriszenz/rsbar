@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-
-use crate::utils::LogVerbosity;
+use clap_verbosity_flag::Verbosity;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -35,8 +34,8 @@ pub struct Args {
     pub polygon: bool,
 
     /// Set debug output level
-    #[arg(short, long, value_enum, default_value_t = LogVerbosity::Normal)]
-    pub verbosity: LogVerbosity,
+    #[command(flatten)]
+    pub verbosity: Verbosity,
 
     /// Output decoded symbol data without converting charsets
     /// (mutually exclusive with the --[no]xml options)

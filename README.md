@@ -99,25 +99,25 @@ Check the manual to find specific options for each program.
 
 In order to test if dbus is working, you could use:
 
-```shell
+```
 $ dbus-monitor --system interface=org.linuxtv.Zbar1.Code
 ```
 
 or build the test programs with:
 
-```shell
+```
 $ make test_progs
 ```
 
 And run:
 
-```shell
+```
 $ ./test/test_dbus
 ```
 
 With that, running this command on a separate shell:
 
-```shell
+```
 $ cargo run --features dbus --bin rsbar-img examples/code-128.png
 CODE-128:https://github.com/mchehab/zbar
 scanned 1 barcode symbols from 1 images in 0.01 seconds
@@ -125,7 +125,7 @@ scanned 1 barcode symbols from 1 images in 0.01 seconds
 
 Will produce this output at test_dbus shell window:
 
-```shell
+```
 Waiting for Zbar events
 Type = CODE-128
 Value = https://github.com/mchehab/zbar
