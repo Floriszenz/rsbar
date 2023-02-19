@@ -1,18 +1,15 @@
-mod errors;
 mod ffi;
 mod utils;
 
 use std::time::SystemTime;
 
+use anyhow::{anyhow, Result};
 use log::LevelFilter;
 
 pub use crate::utils::cli_args::Args;
-use crate::{
-    errors::{ProgramError, ProgramResult},
-    utils::XmlPrinter,
-};
+use crate::utils::XmlPrinter;
 
-pub fn run(args: Args) -> ProgramResult<()> {
+pub fn run(args: Args) -> Result<()> {
     let start_time = SystemTime::now();
 
     set_global_verbosity(args.verbosity.log_level_filter());
@@ -34,7 +31,7 @@ pub fn run(args: Args) -> ProgramResult<()> {
     drop_processor(processor);
 
     if detected_symbol_count == 0 {
-        return Err(ProgramError::NoSymbolDetected);
+        return Err(anyhow!("No symbol detected"));
     }
 
     Ok(())
@@ -57,15 +54,15 @@ fn set_global_verbosity(verbosity: LevelFilter) {
     }
 }
 
-fn check_images(args: &Args) -> ProgramResult<()> {
+fn check_images(args: &Args) -> Result<()> {
     if args.images.is_empty() {
-        return Err(ProgramError::NoImagePassed);
+        return Err(anyhow!("Specify image file(s) to scan"));
     }
 
     Ok(())
 }
 
-fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
+fn initialize_processor(args: &Args) -> Result<*mut libc::c_void> {
     let Args {
         display, nodbus, ..
     } = args;
@@ -81,7 +78,7 @@ fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
 
         if ffi::zbar_processor_init(processor, std::ptr::null(), (*display).into()) != 0 {
             ffi::_zbar_error_spew(processor, 0);
-            return Err(ProgramError::ProcessorInitFailed);
+            return Err(anyhow!("Failed to initialize the processor"));
         }
 
         apply_arguments_to_processor(processor, args)?;
@@ -90,13 +87,13 @@ fn initialize_processor(args: &Args) -> ProgramResult<*mut libc::c_void> {
     }
 }
 
-fn parse_configs(args: &Args, processor: *mut libc::c_void) -> ProgramResult<()> {
+fn parse_configs(args: &Args, processor: *mut libc::c_void) -> Result<()> {
     args.config
         .iter()
         .try_for_each(|setting| utils::parse_config(processor, setting))
 }
 
-fn apply_arguments_to_processor(processor: *mut libc::c_void, args: &Args) -> ProgramResult<()> {
+fn apply_arguments_to_processor(processor: *mut libc::c_void, args: &Args) -> Result<()> {
     unsafe {
         ffi::zbar_processor_set_visible(processor, args.display.into());
     }
@@ -106,7 +103,7 @@ fn apply_arguments_to_processor(processor: *mut libc::c_void, args: &Args) -> Pr
     Ok(())
 }
 
-fn scan_images(args: &Args, processor: *mut libc::c_void) -> ProgramResult<u8> {
+fn scan_images(args: &Args, processor: *mut libc::c_void) -> Result<u8> {
     if args.xml {
         XmlPrinter::print_head();
     }

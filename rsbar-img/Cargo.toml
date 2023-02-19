@@ -9,6 +9,7 @@ version.workspace = true
 build = "scripts/build.rs"
 
 [dependencies]
+anyhow = { version = "1.0.69" }
 clap = { version = "4.1.4", features = ["derive"] }
 clap-verbosity-flag = { version = "2.0.0" }
 env_logger = { version = "0.10.0" }

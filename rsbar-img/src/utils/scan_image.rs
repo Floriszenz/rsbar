@@ -1,12 +1,8 @@
-use std::{
-    ffi::CStr,
-    path::{Path, PathBuf},
-};
+use std::{ffi::CStr, path::Path};
 
-use crate::{
-    errors::{ProgramError, ProgramResult},
-    ffi::{self, ZbarSymbolType},
-};
+use anyhow::{anyhow, Context, Result};
+
+use crate::ffi::{self, ZbarSymbolType};
 
 use super::{cli_args::Args, XmlPrinter};
 
@@ -15,11 +11,11 @@ const fn zbar_fourcc(code: &[u8; 4]) -> u64 {
 }
 
 pub fn scan_image(
-    filename: &PathBuf,
+    filename: &Path,
     idx: usize,
     processor: *mut libc::c_void,
     args: &Args,
-) -> ProgramResult<u8> {
+) -> Result<u8> {
     let zimage = zbar_image_new(filename)?;
 
     if args.xml {
@@ -41,8 +37,9 @@ pub fn scan_image(
     Ok(symbol_count)
 }
 
-fn zbar_image_new(filename: &PathBuf) -> ProgramResult<*mut libc::c_void> {
-    let image = image::open(filename)?;
+fn zbar_image_new(filename: &Path) -> Result<*mut libc::c_void> {
+    let image = image::open(filename)
+        .with_context(|| format!("Failed to open image `{}`", filename.display()))?;
 
     unsafe {
         let zimage = ffi::zbar_image_create();
@@ -70,13 +67,14 @@ fn process_image(
     processor: *mut libc::c_void,
     zimage: *mut libc::c_void,
     filename: &Path,
-) -> ProgramResult<()> {
+) -> Result<()> {
     unsafe {
         let processing_result = ffi::zbar_process_image(processor, zimage);
 
         if processing_result == -1 {
-            return Err(ProgramError::ImageProcessFailed(
-                filename.display().to_string(),
+            return Err(anyhow!(
+                "Failed to process the image `{}`",
+                filename.display()
             ));
         }
     }
