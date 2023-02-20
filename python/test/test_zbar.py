@@ -33,7 +33,7 @@ class TestZBarFunctions(ut.TestCase):
     def test_version(self):
         ver = zbar.version()
         self.assertTrue(isinstance(ver, tuple))
-        self.assertEqual(len(ver), 2)
+        self.assertEqual(len(ver), 3)
         for v in ver:
             self.assertTrue(isinstance(v, int))
 
@@ -242,13 +242,13 @@ class TestImage(ut.TestCase):
         self.assertTrue(callable(self.image.convert))
 
     def test_new(self):
-        self.assertEqual(self.image.format, 'Y800')
+        self.assertEqual(self.image.format, b'Y800')
         self.assertEqual(self.image.size, (123, 456))
         self.assertEqual(self.image.crop, (0, 0, 123, 456))
 
         image = zbar.Image()
         self.assertTrue(isinstance(image, zbar.Image))
-        self.assertEqual(image.format, '\0\0\0\0')
+        self.assertEqual(image.format, b'\0\0\0\0')
         self.assertEqual(image.size, (0, 0))
         self.assertEqual(image.crop, (0, 0, 0, 0))
 
@@ -256,13 +256,13 @@ class TestImage(ut.TestCase):
         def set_format(fmt):
             self.image.format = fmt
         self.assertRaises(ValueError, set_format, 10)
-        self.assertEqual(self.image.format, 'Y800')
+        self.assertEqual(self.image.format, b'Y800')
         self.image.format = 'gOOb'
-        self.assertEqual(self.image.format, 'gOOb')
+        self.assertEqual(self.image.format, b'gOOb')
         self.assertRaises(ValueError, set_format, 'yomama')
-        self.assertEqual(self.image.format, 'gOOb')
+        self.assertEqual(self.image.format, b'gOOb')
         self.assertRaises(ValueError, set_format, 'JPG')
-        self.assertEqual(self.image.format, 'gOOb')
+        self.assertEqual(self.image.format, b'gOOb')
 
     def test_size(self):
         def set_size(sz):
@@ -380,7 +380,7 @@ class TestImageScan(ut.TestCase):
             self.assertTrue(isinstance(comps, zbar.SymbolSet))
             self.assertEqual(len(comps), 0)
             self.assertTrue(not comps)
-            self.assertTrue(tuple(comps) is ())
+            self.assertTrue(tuple(comps) == ())
 
             data = sym.data
             self.assertEqual(data, '9876543210128')

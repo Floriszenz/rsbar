@@ -39,6 +39,8 @@ setup(
                 'scanner.c',
                 ],
             libraries = [ 'zbar' ],
+            library_dirs = ['../zbar/.libs'],
+            runtime_library_dirs = ['../zbar/.libs'],
             include_dirs = ['../include']
         ),
     ],

@@ -7,6 +7,8 @@
 .dirstamp
 .libs/
 build/
+dist/
+zbar.egg-info/
 
 aclocal.m4
 autom4te.cache/
